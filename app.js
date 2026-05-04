@@ -10,13 +10,64 @@ const PANINI_ALBUM = {
   name: "Álbum Copa 2026"
 };
 
+const MCDONALDS_SELECTIONS = [
+  { code: "GER", name: "Alemanha", flagCode: "de" },
+  { code: "KSA", name: "Arábia Saudita", flagCode: "sa" },
+  { code: "ARG", name: "Argentina", flagCode: "ar" },
+  { code: "AUS", name: "Austrália", flagCode: "au" },
+  { code: "BEL", name: "Bélgica", flagCode: "be" },
+  { code: "BRA", name: "Brasil", flagCode: "br" },
+  { code: "CAN", name: "Canadá", flagCode: "ca" },
+  { code: "QAT", name: "Catar", flagCode: "qa" },
+  { code: "COL", name: "Colômbia", flagCode: "co" },
+  { code: "KOR", name: "Coreia do Sul", flagCode: "kr" },
+  { code: "CIV", name: "Costa do Marfim", flagCode: "ci" },
+  { code: "CRO", name: "Croácia", flagCode: "hr" },
+  { code: "ESP", name: "Espanha", flagCode: "es" },
+  { code: "USA", name: "Estados Unidos", flagCode: "us" },
+  { code: "FRA", name: "França", flagCode: "fr" },
+  { code: "GHA", name: "Gana", flagCode: "gh" },
+  { code: "NED", name: "Holanda", flagCode: "nl" },
+  { code: "ENG", name: "Inglaterra", flagCode: "gb-eng" },
+  { code: "JPN", name: "Japão", flagCode: "jp" },
+  { code: "MAR", name: "Marrocos", flagCode: "ma" },
+  { code: "MEX", name: "México", flagCode: "mx" },
+  { code: "NOR", name: "Noruega", flagCode: "no" },
+  { code: "PAN", name: "Panamá", flagCode: "pa" },
+  { code: "SEN", name: "Senegal", flagCode: "sn" },
+  { code: "SUI", name: "Suíça", flagCode: "ch" },
+  { code: "TUN", name: "Tunísia", flagCode: "tn" },
+  { code: "URU", name: "Uruguai", flagCode: "uy" },
+  { code: "UZB", name: "Uzbequistão", flagCode: "uz" }
+];
+
 const GROUPS = [
   {
     id: "other",
     name: "Outras",
     teams: [
+      {
+        code: "PANINI",
+        name: "Panini",
+        icon: "📘",
+        stickers: [{ idSuffix: "00", label: "PN 00", number: 0 }]
+      },
       { code: "FWC", name: "FIFA World Cup History", icon: "🏆", count: 19 },
-      { code: "CC", name: "Coca-Cola", icon: "🥤", count: 14 }
+      { code: "CC", name: "Coca-Cola", icon: "🥤", count: 14 },
+      {
+        code: "MC",
+        name: "McDonald's",
+        icon: "🍟",
+        optionalSet: "mcdonalds",
+        stickers: MCDONALDS_SELECTIONS.map((selection) => ({
+          idSuffix: selection.code,
+          label: `MC ${selection.code}`,
+          number: selection.code,
+          flagCode: selection.flagCode,
+          representedName: selection.name,
+          variant: "mcdonalds"
+        }))
+      }
     ]
   },
   {
@@ -143,7 +194,6 @@ const GROUPS = [
 
 const TEAMS = buildTeams();
 const COLLECTION_ITEMS = buildCollectionItems();
-const COLLECTION_TOTAL = COLLECTION_ITEMS.length;
 const TEAM_BY_CODE = new Map(TEAMS.map((team) => [team.code, team]));
 const GROUP_BY_ID = new Map(GROUPS.map((group) => [group.id, group]));
 const ITEMS_BY_TEAM = new Map(TEAMS.map((team) => [
@@ -168,6 +218,9 @@ const els = {
   stickersScreen: document.querySelector("#stickersScreen"),
   albumForm: document.querySelector("#albumForm"),
   albumName: document.querySelector("#albumName"),
+  includeMcDonalds: document.querySelector("#includeMcDonalds"),
+  importAlbumButton: document.querySelector("#importAlbumButton"),
+  importAlbumInput: document.querySelector("#importAlbumInput"),
   albumList: document.querySelector("#albumList"),
   emptyAlbums: document.querySelector("#emptyAlbums"),
   backButton: document.querySelector("#backButton"),
@@ -178,6 +231,8 @@ const els = {
   progressRing: document.querySelector("#progressRing"),
   progressPercent: document.querySelector("#progressPercent"),
   progressSummary: document.querySelector("#progressSummary"),
+  shareCollectionButton: document.querySelector("#shareCollectionButton"),
+  whatsappShareButton: document.querySelector("#whatsappShareButton"),
   modeOptions: document.querySelector("#modeOptions"),
   filterToggle: document.querySelector("#filterToggle"),
   filterPanel: document.querySelector("#filterPanel"),
@@ -206,6 +261,23 @@ function buildTeams() {
 
 function buildCollectionItems() {
   return buildTeams().flatMap((team) => {
+    if (team.stickers) {
+      return team.stickers.map((sticker) => ({
+        id: `${team.code}-${sticker.idSuffix}`,
+        label: sticker.label,
+        number: sticker.number,
+        teamCode: team.code,
+        teamName: team.name,
+        groupId: team.groupId,
+        groupName: team.groupName,
+        flagCode: sticker.flagCode || team.flagCode,
+        icon: team.icon,
+        optionalSet: team.optionalSet,
+        representedName: sticker.representedName,
+        variant: sticker.variant
+      }));
+    }
+
     return Array.from({ length: team.count }, (_, index) => {
       const number = index + 1;
       return {
@@ -217,15 +289,34 @@ function buildCollectionItems() {
         groupId: team.groupId,
         groupName: team.groupName,
         flagCode: team.flagCode,
-        icon: team.icon
+        icon: team.icon,
+        optionalSet: team.optionalSet
       };
     });
   });
 }
 
 function formatStickerLabel(code, number) {
-  if (code === "CC") return `CC${number}`;
+  if (code === "CC") return `CC ${number}`;
   return `${code} ${number}`;
+}
+
+function isOptionalSetEnabled(optionalSet, album = state.activeAlbum) {
+  if (!optionalSet) return true;
+  if (optionalSet === "mcdonalds") return Boolean(album?.includeMcDonalds);
+  return false;
+}
+
+function getTeams(album = state.activeAlbum) {
+  return TEAMS.filter((team) => isOptionalSetEnabled(team.optionalSet, album));
+}
+
+function getCollectionItems(album = state.activeAlbum) {
+  return COLLECTION_ITEMS.filter((item) => isOptionalSetEnabled(item.optionalSet, album));
+}
+
+function getItemsByTeam(teamCode, album = state.activeAlbum) {
+  return (ITEMS_BY_TEAM.get(teamCode) || []).filter((item) => isOptionalSetEnabled(item.optionalSet, album));
 }
 
 function getFlagSource(entity) {
@@ -345,6 +436,122 @@ async function deleteAlbumWithStickers(albumId) {
   });
 }
 
+async function getStickersForAlbum(albumId) {
+  const stickers = await getAll(STICKER_STORE);
+  return stickers.filter((sticker) => sticker.albumId === albumId);
+}
+
+function sanitizeFileName(value) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/gi, "-")
+    .replace(/^-+|-+$/g, "")
+    .toLowerCase() || "album-copa-2026";
+}
+
+function downloadJson(data, fileName) {
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+
+  link.href = url;
+  link.download = fileName;
+  document.body.append(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+async function exportAlbum(album) {
+  const stickers = await getStickersForAlbum(album.id);
+  const payload = {
+    app: "app-copa-2026",
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    album: {
+      name: album.name,
+      collectionId: album.collectionId,
+      includeMcDonalds: Boolean(album.includeMcDonalds),
+      createdAt: album.createdAt,
+      updatedAt: Date.now()
+    },
+    stickers: stickers.map((sticker) => ({
+      itemId: sticker.itemId,
+      label: sticker.label,
+      number: sticker.number,
+      teamCode: sticker.teamCode,
+      teamName: sticker.teamName,
+      groupId: sticker.groupId,
+      groupName: sticker.groupName,
+      representedName: sticker.representedName || "",
+      variant: sticker.variant || "",
+      status: sticker.status,
+      quantity: sticker.quantity,
+      notes: sticker.notes || "",
+      createdAt: sticker.createdAt,
+      updatedAt: sticker.updatedAt
+    }))
+  };
+
+  downloadJson(payload, `${sanitizeFileName(album.name)}.json`);
+}
+
+function readFileAsText(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ""));
+    reader.onerror = () => reject(reader.error);
+    reader.readAsText(file);
+  });
+}
+
+function normalizeImportPayload(payload) {
+  if (!payload || payload.app !== "app-copa-2026" || !payload.album || !Array.isArray(payload.stickers)) {
+    throw new Error("Arquivo JSON invalido para este app.");
+  }
+
+  const album = normalizeAlbum({
+    id: crypto.randomUUID(),
+    name: `${payload.album.name || PANINI_ALBUM.name} (importado)`,
+    collectionId: payload.album.collectionId || PANINI_ALBUM.collectionId,
+    includeMcDonalds: Boolean(payload.album.includeMcDonalds),
+    createdAt: Date.now(),
+    updatedAt: Date.now()
+  });
+
+  const validItemIds = new Set(getCollectionItems(album).map((item) => item.id));
+  const stickers = payload.stickers
+    .filter((sticker) => sticker.itemId && validItemIds.has(sticker.itemId))
+    .map((sticker) => ({
+      ...sticker,
+      id: `${album.id}-${sticker.itemId}`,
+      albumId: album.id,
+      status: sticker.status === "duplicate" ? "duplicate" : sticker.status === "owned" ? "owned" : "missing",
+      quantity: Number(sticker.quantity) || 0,
+      notes: sticker.notes || "",
+      createdAt: sticker.createdAt || Date.now(),
+      updatedAt: Date.now()
+    }));
+
+  return { album, stickers };
+}
+
+async function importAlbumFromFile(file) {
+  const text = await readFileAsText(file);
+  const payload = JSON.parse(text);
+  const { album, stickers } = normalizeImportPayload(payload);
+
+  await putItem(ALBUM_STORE, album);
+  for (const sticker of stickers) {
+    await putItem(STICKER_STORE, sticker);
+  }
+
+  await loadAlbums();
+  savePulse();
+  window.alert(`Album importado com ${stickers.length} figurinhas.`);
+}
+
 async function loadAlbums() {
   const albums = await getAll(ALBUM_STORE);
   const normalized = [];
@@ -371,11 +578,16 @@ async function loadStickers(albumId) {
 }
 
 function normalizeAlbum(album) {
-  return {
+  const normalized = {
     ...album,
+    includeMcDonalds: Boolean(album.includeMcDonalds),
     collectionId: PANINI_ALBUM.collectionId,
-    total: COLLECTION_TOTAL,
     updatedAt: album.updatedAt || Date.now()
+  };
+
+  return {
+    ...normalized,
+    total: getCollectionItems(normalized).length
   };
 }
 
@@ -411,7 +623,7 @@ function getVisibleItems() {
   const status = els.statusFilter.value;
   const stickerMap = getStickerMap();
 
-  return COLLECTION_ITEMS.filter((item) => {
+  return getCollectionItems().filter((item) => {
     const sticker = stickerMap.get(item.id);
     const group = GROUP_BY_ID.get(item.groupId);
     const haystack = `${item.label} ${item.teamCode} ${item.teamName} ${group?.name || ""} ${sticker?.notes || ""}`.toLowerCase();
@@ -437,6 +649,91 @@ function groupItemsByTeam(items) {
   return map;
 }
 
+function getStatusLabel(item, stickerMap = getStickerMap()) {
+  const sticker = stickerMap.get(item.id);
+  if (isOwned(sticker)) return "Ja obtida";
+  return "Faltando";
+}
+
+function getShareItems() {
+  const visibleItems = getVisibleItems();
+
+  if (state.viewMode === "group") {
+    if (state.selectedTeamCode) {
+      const ids = new Set(getItemsByTeam(state.selectedTeamCode).map((item) => item.id));
+      return visibleItems.filter((item) => ids.has(item.id));
+    }
+
+    if (state.selectedGroupId) {
+      return visibleItems.filter((item) => item.groupId === state.selectedGroupId);
+    }
+  }
+
+  if (state.viewMode === "team" && state.selectedTeamCode) {
+    const ids = new Set(getItemsByTeam(state.selectedTeamCode).map((item) => item.id));
+    return visibleItems.filter((item) => ids.has(item.id));
+  }
+
+  return visibleItems;
+}
+
+function buildCollectionShareText() {
+  const items = getShareItems();
+  const stickerMap = getStickerMap();
+  const owned = items.filter((item) => isOwned(stickerMap.get(item.id))).length;
+  const missing = items.length - owned;
+  const lines = [
+    `Resumo: ${owned} ja obtidas`,
+    `${missing} faltando`,
+    ""
+  ];
+
+  if (!items.length) {
+    lines.push("Nenhuma figurinha encontrada com os filtros aplicados.");
+    return lines.join("\n");
+  }
+
+  const grouped = groupItemsByTeam(items);
+  grouped.forEach((teamItems, teamCode) => {
+    const team = TEAM_BY_CODE.get(teamCode);
+    lines.push(`${team?.groupName || "Outras"} - ${team?.name || teamCode} (${teamCode})`);
+    teamItems.forEach((item) => {
+      const sticker = stickerMap.get(item.id);
+      const note = sticker?.notes ? ` - obs: ${sticker.notes}` : "";
+      lines.push(`- ${item.label}: ${getStatusLabel(item, stickerMap)}${note}`);
+    });
+    lines.push("");
+  });
+
+  return lines.join("\n").trim();
+}
+
+async function shareCollectionText() {
+  const text = buildCollectionShareText();
+
+  if (navigator.share) {
+    await navigator.share({
+      title: "Album Copa 2026",
+      text
+    });
+    return;
+  }
+
+  if (navigator.clipboard) {
+    await navigator.clipboard.writeText(text);
+    window.alert("Resumo copiado para a area de transferencia.");
+    return;
+  }
+
+  window.prompt("Copie o resumo:", text);
+}
+
+function shareCollectionOnWhatsApp() {
+  const text = buildCollectionShareText();
+  const url = `https://wa.me/?text=${encodeURIComponent(text)}`;
+  window.open(url, "_blank", "noopener");
+}
+
 function renderAlbums() {
   els.albumList.textContent = "";
   els.emptyAlbums.classList.toggle("hidden", state.albums.length > 0);
@@ -444,15 +741,17 @@ function renderAlbums() {
   state.albums.forEach((album) => {
     const node = els.albumCardTemplate.content.firstElementChild.cloneNode(true);
     const openButton = node.querySelector(".album-open");
-    const deleteButton = node.querySelector(".ghost-button");
+    const exportButton = node.querySelector(".export-button");
+    const deleteButton = node.querySelector(".delete-button");
     const title = node.querySelector("strong");
     const meta = node.querySelector(".album-info span");
     const count = state.allStickers.filter((sticker) => sticker.albumId === album.id && isOwned(sticker)).length;
 
     title.textContent = album.name;
-    meta.textContent = `${count} obtidas - criado em ${formatDate(album.createdAt)}`;
+    meta.textContent = `${count} obtidas - ${album.includeMcDonalds ? "com McDonald's - " : ""}criado em ${formatDate(album.createdAt)}`;
 
     openButton.addEventListener("click", () => openAlbum(album.id));
+    exportButton.addEventListener("click", () => exportAlbum(album));
     deleteButton.addEventListener("click", async () => {
       const confirmed = window.confirm(`Excluir "${album.name}" e todas as figurinhas cadastradas nele?`);
       if (!confirmed) return;
@@ -495,8 +794,9 @@ function renderStickerScreen() {
   if (!album) return;
 
   const owned = ownedCount();
-  const percent = Math.round((owned / COLLECTION_TOTAL) * 100);
-  const missing = COLLECTION_TOTAL - owned;
+  const total = getCollectionItems().length;
+  const percent = total ? Math.round((owned / total) * 100) : 0;
+  const missing = total - owned;
 
   els.stickersTitle.textContent = album.name;
   els.albumMeta.textContent = `${owned} obtidas - ${missing} faltando`;
@@ -525,14 +825,14 @@ function renderCollection() {
 function renderGroupMode() {
   if (state.selectedTeamCode) {
     const team = TEAM_BY_CODE.get(state.selectedTeamCode);
-    renderStickerList(ITEMS_BY_TEAM.get(team.code) || [], team.name, `${team.groupName} - ${team.code}`);
+    renderStickerList(getItemsByTeam(team.code), team.name, `${team.groupName} - ${team.code}`);
     updateBackButton(true);
     return;
   }
 
   if (state.selectedGroupId) {
     const group = GROUP_BY_ID.get(state.selectedGroupId);
-    const teams = TEAMS.filter((team) => team.groupId === group.id);
+    const teams = getTeams().filter((team) => team.groupId === group.id);
     els.collectionKicker.textContent = group.name;
     els.collectionTitle.textContent = "Selecione um time";
     renderFlags(teams);
@@ -550,21 +850,21 @@ function renderGroupMode() {
 function renderTeamMode() {
   if (state.selectedTeamCode) {
     const team = TEAM_BY_CODE.get(state.selectedTeamCode);
-    renderStickerList(ITEMS_BY_TEAM.get(team.code) || [], team.name, `${team.groupName} - ${team.code}`);
+    renderStickerList(getItemsByTeam(team.code), team.name, `${team.groupName} - ${team.code}`);
     updateBackButton(true);
     return;
   }
 
   els.collectionKicker.textContent = "Times";
   els.collectionTitle.textContent = "Selecione um time";
-  renderTeamCards(TEAMS);
+  renderTeamCards(getTeams());
   updateBackButton(false);
 }
 
 function renderStickerMode() {
   els.collectionKicker.textContent = "Figurinhas";
   els.collectionTitle.textContent = "Todas as figurinhas";
-  renderStickerList(COLLECTION_ITEMS, "Todas as figurinhas", "Toque para marcar. Segure para observacao.", false);
+  renderStickerList(getCollectionItems(), "Todas as figurinhas", "Toque para marcar. Segure para observacao.", false);
   updateBackButton(false);
 }
 
@@ -574,8 +874,8 @@ function renderGroupCards() {
   const visibleGroupIds = new Set(visibleItems.map((item) => item.groupId));
 
   GROUPS.filter((group) => visibleGroupIds.has(group.id)).forEach((group) => {
-    const teams = TEAMS.filter((team) => team.groupId === group.id);
-    const items = COLLECTION_ITEMS.filter((item) => item.groupId === group.id);
+    const teams = getTeams().filter((team) => team.groupId === group.id);
+    const items = getCollectionItems().filter((item) => item.groupId === group.id);
     const owned = items.filter((item) => isOwned(stickerMap.get(item.id))).length;
     const card = createBrowseCard({
       title: group.name,
@@ -601,7 +901,7 @@ function renderTeamCards(teams) {
   const stickerMap = getStickerMap();
 
   teams.filter((team) => visibleByTeam.has(team.code)).forEach((team) => {
-    const items = ITEMS_BY_TEAM.get(team.code) || [];
+    const items = getItemsByTeam(team.code);
     const owned = items.filter((item) => isOwned(stickerMap.get(item.id))).length;
     const card = createBrowseCard({
       title: team.name,
@@ -678,10 +978,10 @@ function createStickerButton(item) {
   button.innerHTML = `
     ${flagHtml(item, "sticker-flag")}
     <strong>${item.label}</strong>
-    <span>${owned ? "Ja obtida" : "Faltando"}</span>
+    <span>${owned ? "Já obtida" : "Faltando"}</span>
     ${hasNote ? `<em>Obs.</em>` : ""}
   `;
-  button.setAttribute("aria-label", `${item.label}, ${item.teamName}, ${owned ? "ja obtida" : "faltando"}`);
+  button.setAttribute("aria-label", `${item.label}, ${item.teamName}, ${owned ? "já obtida" : "faltando"}`);
 
   attachStickerPress(button, item);
   return button;
@@ -768,6 +1068,8 @@ function createStickerRecord(item, status, notes = "", existing = null) {
     teamName: item.teamName,
     groupId: item.groupId,
     groupName: item.groupName,
+    representedName: item.representedName || "",
+    variant: item.variant || "",
     status,
     quantity: status === "owned" || status === "duplicate" ? 1 : 0,
     notes,
@@ -835,6 +1137,7 @@ function registerEvents() {
     const album = normalizeAlbum({
       id: crypto.randomUUID(),
       name: els.albumName.value.trim() || PANINI_ALBUM.name,
+      includeMcDonalds: els.includeMcDonalds.checked,
       createdAt: Date.now(),
       updatedAt: Date.now()
     });
@@ -845,7 +1148,33 @@ function registerEvents() {
     savePulse();
   });
 
+  els.importAlbumButton.addEventListener("click", () => {
+    els.importAlbumInput.click();
+  });
+
+  els.importAlbumInput.addEventListener("change", async () => {
+    const file = els.importAlbumInput.files?.[0];
+    els.importAlbumInput.value = "";
+    if (!file) return;
+
+    try {
+      await importAlbumFromFile(file);
+    } catch (error) {
+      window.alert(error.message || "Não foi possível importar este arquivo.");
+    }
+  });
+
   els.backButton.addEventListener("click", closeAlbum);
+  els.shareCollectionButton.addEventListener("click", async () => {
+    try {
+      await shareCollectionText();
+    } catch (error) {
+      if (error?.name !== "AbortError") {
+        window.alert("Não foi possível compartilhar agora.");
+      }
+    }
+  });
+  els.whatsappShareButton.addEventListener("click", shareCollectionOnWhatsApp);
   els.collectionBackButton.addEventListener("click", handleCollectionBack);
   els.filterToggle.addEventListener("click", () => {
     els.filterPanel.classList.toggle("hidden");

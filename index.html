@@ -1,4 +1,4 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="pt-BR">
   <head>
     <meta charset="utf-8">
@@ -50,7 +50,13 @@
               Nome do álbum
               <input id="albumName" name="name" required maxlength="80" placeholder="Meu álbum da Copa">
             </label>
+            <label class="album-option">
+              <input id="includeMcDonalds" type="checkbox">
+              <span>Incluir coleção McDonald's</span>
+            </label>
             <button class="primary-button" type="submit">Criar álbum</button>
+            <button class="ghost-button import-button" id="importAlbumButton" type="button">Importar</button>
+            <input id="importAlbumInput" class="hidden" type="file" accept="application/json,.json">
           </form>
 
           <div class="album-grid" id="albumList" aria-live="polite"></div>
@@ -59,18 +65,30 @@
 
         <section class="screen hidden" id="stickersScreen" aria-labelledby="stickersTitle">
           <div class="album-dashboard">
-            <div>
+            <div class="dashboard-title">
               <p class="eyebrow">Álbum ativo</p>
-              <h1 id="stickersTitle"></h1>
+              <div class="title-row">
+                <h1 id="stickersTitle"></h1>
+                <div class="share-actions">
+                  <button class="summary-action-button" id="shareCollectionButton" type="button" aria-label="Compartilhar resumo" title="Compartilhar">
+                    <img src="assets/ui/share-2.svg" alt="" aria-hidden="true">
+                  </button>
+                  <button class="summary-action-button whatsapp-button" id="whatsappShareButton" type="button" aria-label="Compartilhar no WhatsApp" title="WhatsApp">
+                    <img src="assets/ui/whatsapp.svg" alt="" aria-hidden="true">
+                  </button>
+                </div>
+              </div>
               <p id="albumMeta"></p>
             </div>
-            <div class="progress-panel">
-              <div class="progress-ring" id="progressRing">
-                <span id="progressPercent">0%</span>
-              </div>
-              <div>
-                <strong id="progressSummary">0 obtidas</strong>
-                <span>figurinhas marcadas</span>
+            <div class="summary-side">
+              <div class="progress-panel">
+                <div class="progress-ring" id="progressRing">
+                  <span id="progressPercent">0%</span>
+                </div>
+                <div>
+                  <strong id="progressSummary">0 obtidas</strong>
+                  <span>figurinhas marcadas</span>
+                </div>
               </div>
             </div>
           </div>
@@ -101,7 +119,7 @@
                 Status
                 <select id="statusFilter">
                   <option value="all">Todas</option>
-                  <option value="owned">Ja obtidas</option>
+                  <option value="owned">Já obtidas</option>
                   <option value="missing">Faltando</option>
                   <option value="noted">Com observacao</option>
                 </select>
@@ -134,10 +152,16 @@
             <span></span>
           </span>
         </button>
-        <button class="ghost-button" type="button">Excluir</button>
+        <div class="album-actions">
+          <button class="ghost-button export-button" type="button">Exportar</button>
+          <button class="delete-icon-button delete-button" type="button" aria-label="Excluir álbum" title="Excluir álbum">
+            <span aria-hidden="true">🗑</span>
+          </button>
+        </div>
       </article>
     </template>
 
     <script src="app.js" defer></script>
   </body>
 </html>
+
