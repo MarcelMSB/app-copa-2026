@@ -793,6 +793,31 @@ function updateFilterClearButton() {
   els.clearFilterButton.classList.toggle("hidden", !hasFilter);
 }
 
+function isStandaloneApp() {
+  return window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
+}
+
+function isIosDevice() {
+  return /iphone|ipad|ipod/i.test(window.navigator.userAgent);
+}
+
+function showInstallFallback() {
+  if (isStandaloneApp()) {
+    els.installButton.classList.add("hidden");
+    return;
+  }
+
+  els.installButton.classList.remove("hidden");
+}
+
+function showInstallHelp() {
+  const message = isIosDevice()
+    ? "Para instalar no iPhone: abra no Safari, toque em Compartilhar e escolha Adicionar à Tela de Início."
+    : "Para instalar, use a opção Instalar app no menu do navegador ou adicione esta página à tela inicial.";
+
+  window.alert(message);
+}
+
 function handleCollectionBack() {
   if (state.selectedTeamCode) {
     state.selectedTeamCode = null;
@@ -851,12 +876,23 @@ function registerEvents() {
   });
 
   els.installButton.addEventListener("click", async () => {
-    if (!state.deferredInstallPrompt) return;
+    if (!state.deferredInstallPrompt) {
+      showInstallHelp();
+      return;
+    }
+
     state.deferredInstallPrompt.prompt();
     await state.deferredInstallPrompt.userChoice;
     state.deferredInstallPrompt = null;
     els.installButton.classList.add("hidden");
   });
+
+  window.addEventListener("appinstalled", () => {
+    state.deferredInstallPrompt = null;
+    els.installButton.classList.add("hidden");
+  });
+
+  window.setTimeout(showInstallFallback, 1200);
 }
 
 async function registerServiceWorker() {
