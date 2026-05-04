@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#0f6b57">
+    <meta name="description" content="Gerencie localmente suas figurinhas da Copa de 2026.">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="Álbum Copa 2026">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <title>Álbum Copa 2026</title>
+    <link rel="manifest" href="manifest.webmanifest">
+    <link rel="icon" href="assets/icon.svg" type="image/svg+xml">
+    <link rel="apple-touch-icon" href="assets/icon-512.png">
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <button class="icon-button hidden" id="backButton" type="button" aria-label="Voltar para os álbuns" title="Voltar">
+          <span aria-hidden="true"><</span>
+        </button>
+        <div class="brand">
+          <img src="assets/icon.svg" alt="" width="38" height="38">
+          <div>
+            <strong>Álbum Copa 2026</strong>
+            <span id="syncStatus">Salvo neste dispositivo</span>
+          </div>
+        </div>
+        <button class="install-button hidden" id="installButton" type="button">Instalar</button>
+      </header>
+
+      <main>
+        <section class="screen" id="albumsScreen" aria-labelledby="albumsTitle">
+          <div class="intro-band">
+            <div>
+              <p class="eyebrow">Colecao local</p>
+              <h1 id="albumsTitle">Seus álbuns</h1>
+            </div>
+            <div class="pitch-visual" aria-hidden="true">
+              <span></span>
+              <span></span>
+              <span></span>
+            </div>
+          </div>
+
+          <form class="album-form" id="albumForm">
+            <label>
+              Nome do álbum
+              <input id="albumName" name="name" required maxlength="80" placeholder="Meu álbum da Copa">
+            </label>
+            <button class="primary-button" type="submit">Criar álbum</button>
+          </form>
+
+          <div class="album-grid" id="albumList" aria-live="polite"></div>
+          <p class="empty-state hidden" id="emptyAlbums">Crie seu primeiro álbum para começar a marcar as figurinhas.</p>
+        </section>
+
+        <section class="screen hidden" id="stickersScreen" aria-labelledby="stickersTitle">
+          <div class="album-dashboard">
+            <div>
+              <p class="eyebrow">Álbum ativo</p>
+              <h1 id="stickersTitle"></h1>
+              <p id="albumMeta"></p>
+            </div>
+            <div class="progress-panel">
+              <div class="progress-ring" id="progressRing">
+                <span id="progressPercent">0%</span>
+              </div>
+              <div>
+                <strong id="progressSummary">0 obtidas</strong>
+                <span>figurinhas marcadas</span>
+              </div>
+            </div>
+          </div>
+
+          <section class="mode-panel" aria-label="Agrupamento">
+            <div class="mode-options" id="modeOptions">
+              <label class="mode-option">
+                <input type="radio" name="viewMode" value="group" checked>
+                <span>Por Grupo</span>
+              </label>
+              <label class="mode-option">
+                <input type="radio" name="viewMode" value="team">
+                <span>Por Time</span>
+              </label>
+              <label class="mode-option">
+                <input type="radio" name="viewMode" value="sticker">
+                <span>Por Figurinha</span>
+              </label>
+            </div>
+            <button class="filter-toggle" id="filterToggle" type="button">Filtros</button>
+            <button class="ghost-button clear-filter-button hidden" id="clearFilterButton" type="button">Limpar</button>
+            <div class="filter-panel hidden" id="filterPanel">
+              <label class="search-field">
+                <span>Buscar</span>
+                <input id="searchInput" placeholder="Time, sigla, grupo ou figurinha">
+              </label>
+              <label>
+                Status
+                <select id="statusFilter">
+                  <option value="all">Todas</option>
+                  <option value="owned">Ja obtidas</option>
+                  <option value="missing">Faltando</option>
+                  <option value="noted">Com observacao</option>
+                </select>
+              </label>
+            </div>
+          </section>
+
+          <section class="collection-panel" aria-labelledby="collectionTitle">
+            <div class="panel-heading collection-heading">
+              <div>
+                <p class="panel-kicker" id="collectionKicker">Times</p>
+                <h2 id="collectionTitle">Selecione um time</h2>
+              </div>
+              <button class="ghost-button hidden" id="collectionBackButton" type="button">Voltar</button>
+            </div>
+            <div class="flag-row hidden" id="flagRow"></div>
+            <div class="collection-grid" id="collectionGrid" aria-live="polite"></div>
+            <p class="empty-state hidden" id="emptyCollection">Nenhum item encontrado com esses filtros.</p>
+          </section>
+        </section>
+      </main>
+    </div>
+
+    <template id="albumCardTemplate">
+      <article class="album-card">
+        <button class="album-open" type="button">
+          <span class="album-cover" aria-hidden="true"></span>
+          <span class="album-info">
+            <strong></strong>
+            <span></span>
+          </span>
+        </button>
+        <button class="ghost-button" type="button">Excluir</button>
+      </article>
+    </template>
+
+    <script src="app.js" defer></script>
+  </body>
+</html>

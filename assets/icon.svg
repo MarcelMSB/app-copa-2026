@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Ícone do álbum Copa 2026">
+  <defs>
+    <linearGradient id="bg" x1="72" y1="52" x2="448" y2="462" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#16866d"/>
+      <stop offset="1" stop-color="#084b40"/>
+    </linearGradient>
+    <linearGradient id="gold" x1="188" y1="108" x2="324" y2="382" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffe48a"/>
+      <stop offset=".44" stop-color="#f5c542"/>
+      <stop offset="1" stop-color="#b97816"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="150%">
+      <feDropShadow dx="0" dy="18" stdDeviation="18" flood-color="#062f29" flood-opacity=".35"/>
+    </filter>
+  </defs>
+
+  <rect width="512" height="512" rx="104" fill="url(#bg)"/>
+  <path d="M64 370c102 44 230 44 384 0v72c-128 45-262 45-384 0z" fill="#f5c542"/>
+  <path d="M64 114c126-43 265-43 384 0v64c-123-36-255-36-384 0z" fill="#ffffff" opacity=".1"/>
+
+  <g filter="url(#shadow)">
+    <g transform="rotate(-8 226 264)">
+      <rect x="116" y="92" width="220" height="326" rx="26" fill="#ffffff"/>
+      <rect x="140" y="122" width="172" height="266" rx="16" fill="#edf4ef"/>
+      <path d="M162 164h128M162 210h128M162 256h128M162 302h96" stroke="#0f6b57" stroke-width="13" stroke-linecap="round" opacity=".24"/>
+      <path d="M116 126c36-13 70-20 102-20v310c-34 0-68 7-102 20z" fill="#0f6b57" opacity=".12"/>
+    </g>
+
+    <g>
+      <path d="M206 154h100c-2 74-18 116-50 139-32-23-48-65-50-139z" fill="url(#gold)"/>
+      <path d="M200 178h-30c4 54 23 86 62 98" fill="none" stroke="#f5c542" stroke-width="22" stroke-linecap="round"/>
+      <path d="M312 178h30c-4 54-23 86-62 98" fill="none" stroke="#f5c542" stroke-width="22" stroke-linecap="round"/>
+      <path d="M236 286h40v46h-40z" fill="#d89521"/>
+      <path d="M200 332h112l18 50H182z" fill="url(#gold)"/>
+      <path d="M174 382h164c13 0 24 11 24 24v10H150v-10c0-13 11-24 24-24z" fill="#f5c542"/>
+      <path d="M225 185l31-16 31 16-6 35 25 24-35 5-15 32-15-32-35-5 25-24z" fill="#fff4bf" opacity=".95"/>
+      <path d="M224 154h64" stroke="#fff4bf" stroke-width="12" stroke-linecap="round" opacity=".75"/>
+    </g>
+  </g>
+</svg>

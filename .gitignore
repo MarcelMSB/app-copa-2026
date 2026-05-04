@@ -1,0 +1,6 @@
+.chrome-profile/
+.chrome-icon-profile/
+.edge-profile/
+.server.*.log
+.guard.*.log
+iphone-preview.png

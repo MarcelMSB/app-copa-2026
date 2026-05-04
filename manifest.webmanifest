@@ -1,0 +1,25 @@
+{
+  "name": "Álbum Copa 2026",
+  "short_name": "Copa 2026",
+  "description": "Gerencie localmente suas figurinhas da Copa de 2026.",
+  "id": ".",
+  "start_url": ".",
+  "scope": ".",
+  "display": "standalone",
+  "background_color": "#f4f6f2",
+  "theme_color": "#0f6b57",
+  "icons": [
+    {
+      "src": "assets/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "assets/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
