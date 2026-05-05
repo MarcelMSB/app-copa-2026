@@ -621,7 +621,7 @@ select:focus {
 .filter-panel {
   grid-column: 1 / -1;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(160px, 240px);
+  grid-template-columns: minmax(0, 1fr) minmax(150px, 210px) minmax(170px, 240px);
   gap: 12px;
   padding-top: 2px;
   align-items: end;

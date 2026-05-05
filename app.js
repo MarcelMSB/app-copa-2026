@@ -5,6 +5,11 @@ const STICKER_STORE = "stickers";
 const VIEW_MODE_STORAGE_KEY = "copa-2026-view-mode";
 const THEME_STORAGE_KEY = "copa-2026-theme";
 const DEFAULT_VIEW_MODE = "group";
+const STICKER_TYPE_LABELS = {
+  standard: "Figurinha comum",
+  emblem: "Emblema da selecao",
+  profile: "Selecao perfilada"
+};
 
 const PANINI_ALBUM = {
   collectionId: "panini-fifa-world-cup-2026",
@@ -195,6 +200,7 @@ const GROUPS = [
 
 const TEAMS = buildTeams();
 const COLLECTION_ITEMS = buildCollectionItems();
+const ITEM_BY_ID = new Map(COLLECTION_ITEMS.map((item) => [item.id, item]));
 const TEAM_BY_CODE = new Map(TEAMS.map((team) => [team.code, team]));
 const GROUP_BY_ID = new Map(GROUPS.map((group) => [group.id, group]));
 const ITEMS_BY_TEAM = new Map(TEAMS.map((team) => [
@@ -244,6 +250,7 @@ const els = {
   clearFilterButton: document.querySelector("#clearFilterButton"),
   searchInput: document.querySelector("#searchInput"),
   statusFilter: document.querySelector("#statusFilter"),
+  stickerTypeFilter: document.querySelector("#stickerTypeFilter"),
   collectionKicker: document.querySelector("#collectionKicker"),
   collectionTitle: document.querySelector("#collectionTitle"),
   collectionBackButton: document.querySelector("#collectionBackButton"),
@@ -279,7 +286,9 @@ function buildCollectionItems() {
         icon: team.icon,
         optionalSet: team.optionalSet,
         representedName: sticker.representedName,
-        variant: sticker.variant
+        variant: sticker.variant,
+        stickerType: sticker.stickerType || getStickerType(team, sticker.number),
+        stickerTypeLabel: getStickerTypeLabel(sticker.stickerType || getStickerType(team, sticker.number))
       }));
     }
 
@@ -295,10 +304,22 @@ function buildCollectionItems() {
         groupName: team.groupName,
         flagCode: team.flagCode,
         icon: team.icon,
-        optionalSet: team.optionalSet
+        optionalSet: team.optionalSet,
+        stickerType: getStickerType(team, number),
+        stickerTypeLabel: getStickerTypeLabel(getStickerType(team, number))
       };
     });
   });
+}
+
+function getStickerType(team, number) {
+  if (team.groupId !== "other" && number === 1) return "emblem";
+  if (team.groupId !== "other" && number === 13) return "profile";
+  return "standard";
+}
+
+function getStickerTypeLabel(type) {
+  return STICKER_TYPE_LABELS[type] || STICKER_TYPE_LABELS.standard;
 }
 
 function formatStickerLabel(code, number) {
@@ -526,7 +547,7 @@ async function exportAlbum(album) {
   const stickers = await getStickersForAlbum(album.id);
   const payload = {
     app: "app-copa-2026",
-    version: 1,
+    version: 2,
     exportedAt: new Date().toISOString(),
     album: {
       name: album.name,
@@ -535,22 +556,29 @@ async function exportAlbum(album) {
       createdAt: album.createdAt,
       updatedAt: Date.now()
     },
-    stickers: stickers.map((sticker) => ({
-      itemId: sticker.itemId,
-      label: sticker.label,
-      number: sticker.number,
-      teamCode: sticker.teamCode,
-      teamName: sticker.teamName,
-      groupId: sticker.groupId,
-      groupName: sticker.groupName,
-      representedName: sticker.representedName || "",
-      variant: sticker.variant || "",
-      status: sticker.status,
-      quantity: sticker.quantity,
-      notes: sticker.notes || "",
-      createdAt: sticker.createdAt,
-      updatedAt: sticker.updatedAt
-    }))
+    stickers: stickers.map((sticker) => {
+      const item = ITEM_BY_ID.get(sticker.itemId);
+      const stickerType = item?.stickerType || sticker.stickerType || "standard";
+
+      return {
+        itemId: sticker.itemId,
+        label: item?.label || sticker.label,
+        number: item?.number ?? sticker.number,
+        teamCode: item?.teamCode || sticker.teamCode,
+        teamName: item?.teamName || sticker.teamName,
+        groupId: item?.groupId || sticker.groupId,
+        groupName: item?.groupName || sticker.groupName,
+        representedName: item?.representedName || sticker.representedName || "",
+        variant: item?.variant || sticker.variant || "",
+        stickerType,
+        stickerTypeLabel: getStickerTypeLabel(stickerType),
+        status: sticker.status,
+        quantity: sticker.quantity,
+        notes: sticker.notes || "",
+        createdAt: sticker.createdAt,
+        updatedAt: sticker.updatedAt
+      };
+    })
   };
 
   downloadJson(payload, `${sanitizeFileName(album.name)}.json`);
@@ -565,6 +593,14 @@ function readFileAsText(file) {
   });
 }
 
+function normalizeImportedAlbumName(name) {
+  const baseName = String(name || PANINI_ALBUM.name).trim() || PANINI_ALBUM.name;
+  const normalizedBaseName = baseName.toLocaleLowerCase("pt-BR");
+  const nameExists = state.albums.some((album) => album.name.toLocaleLowerCase("pt-BR") === normalizedBaseName);
+
+  return nameExists ? `${baseName} (importado)` : baseName;
+}
+
 function normalizeImportPayload(payload) {
   if (!payload || payload.app !== "app-copa-2026" || !payload.album || !Array.isArray(payload.stickers)) {
     throw new Error("Arquivo JSON invalido para este app.");
@@ -572,26 +608,41 @@ function normalizeImportPayload(payload) {
 
   const album = normalizeAlbum({
     id: crypto.randomUUID(),
-    name: `${payload.album.name || PANINI_ALBUM.name} (importado)`,
+    name: normalizeImportedAlbumName(payload.album.name),
     collectionId: payload.album.collectionId || PANINI_ALBUM.collectionId,
     includeMcDonalds: Boolean(payload.album.includeMcDonalds),
     createdAt: Date.now(),
     updatedAt: Date.now()
   });
 
-  const validItemIds = new Set(getCollectionItems(album).map((item) => item.id));
+  const validItems = new Map(getCollectionItems(album).map((item) => [item.id, item]));
   const stickers = payload.stickers
-    .filter((sticker) => sticker.itemId && validItemIds.has(sticker.itemId))
-    .map((sticker) => ({
-      ...sticker,
-      id: `${album.id}-${sticker.itemId}`,
-      albumId: album.id,
-      status: sticker.status === "duplicate" ? "duplicate" : sticker.status === "owned" ? "owned" : "missing",
-      quantity: Number(sticker.quantity) || 0,
-      notes: sticker.notes || "",
-      createdAt: sticker.createdAt || Date.now(),
-      updatedAt: Date.now()
-    }));
+    .filter((sticker) => sticker.itemId && validItems.has(sticker.itemId))
+    .map((sticker) => {
+      const item = validItems.get(sticker.itemId);
+      const stickerType = item.stickerType || sticker.stickerType || "standard";
+
+      return {
+        ...sticker,
+        id: `${album.id}-${sticker.itemId}`,
+        albumId: album.id,
+        label: item.label,
+        number: item.number,
+        teamCode: item.teamCode,
+        teamName: item.teamName,
+        groupId: item.groupId,
+        groupName: item.groupName,
+        representedName: item.representedName || "",
+        variant: item.variant || "",
+        stickerType,
+        stickerTypeLabel: getStickerTypeLabel(stickerType),
+        status: sticker.status === "duplicate" ? "duplicate" : sticker.status === "owned" ? "owned" : "missing",
+        quantity: Number(sticker.quantity) || 0,
+        notes: sticker.notes || "",
+        createdAt: sticker.createdAt || Date.now(),
+        updatedAt: Date.now()
+      };
+    });
 
   return { album, stickers };
 }
@@ -680,20 +731,22 @@ function ownedCount(stickers = state.stickers) {
 function getVisibleItems() {
   const query = els.searchInput.value.trim().toLowerCase();
   const status = els.statusFilter.value;
+  const stickerType = els.stickerTypeFilter.value;
   const stickerMap = getStickerMap();
 
   return getCollectionItems().filter((item) => {
     const sticker = stickerMap.get(item.id);
     const group = GROUP_BY_ID.get(item.groupId);
-    const haystack = `${item.label} ${item.teamCode} ${item.teamName} ${group?.name || ""} ${sticker?.notes || ""}`.toLowerCase();
+    const haystack = `${item.label} ${item.teamCode} ${item.teamName} ${group?.name || ""} ${item.stickerTypeLabel || ""} ${sticker?.notes || ""}`.toLowerCase();
     const matchesQuery = !query || haystack.includes(query);
     const matchesStatus =
       status === "all" ||
       (status === "owned" && isOwned(sticker)) ||
       (status === "missing" && !isOwned(sticker)) ||
       (status === "noted" && Boolean(sticker?.notes));
+    const matchesType = stickerType === "all" || item.stickerType === stickerType;
 
-    return matchesQuery && matchesStatus;
+    return matchesQuery && matchesStatus && matchesType;
   });
 }
 
@@ -703,6 +756,17 @@ function groupItemsByTeam(items) {
   items.forEach((item) => {
     if (!map.has(item.teamCode)) map.set(item.teamCode, []);
     map.get(item.teamCode).push(item);
+  });
+
+  return map;
+}
+
+function groupItemsByGroup(items) {
+  const map = new Map();
+
+  items.forEach((item) => {
+    if (!map.has(item.groupId)) map.set(item.groupId, []);
+    map.get(item.groupId).push(item);
   });
 
   return map;
@@ -930,11 +994,11 @@ function renderStickerMode() {
 function renderGroupCards() {
   const visibleItems = getVisibleItems();
   const stickerMap = getStickerMap();
-  const visibleGroupIds = new Set(visibleItems.map((item) => item.groupId));
+  const visibleByGroup = groupItemsByGroup(visibleItems);
 
-  GROUPS.filter((group) => visibleGroupIds.has(group.id)).forEach((group) => {
+  GROUPS.filter((group) => visibleByGroup.has(group.id)).forEach((group) => {
     const teams = getTeams().filter((team) => team.groupId === group.id);
-    const items = getCollectionItems().filter((item) => item.groupId === group.id);
+    const items = visibleByGroup.get(group.id) || [];
     const owned = items.filter((item) => isOwned(stickerMap.get(item.id))).length;
     const card = createBrowseCard({
       title: group.name,
@@ -960,7 +1024,7 @@ function renderTeamCards(teams) {
   const stickerMap = getStickerMap();
 
   teams.filter((team) => visibleByTeam.has(team.code)).forEach((team) => {
-    const items = getItemsByTeam(team.code);
+    const items = visibleByTeam.get(team.code) || [];
     const owned = items.filter((item) => isOwned(stickerMap.get(item.id))).length;
     const card = createBrowseCard({
       title: team.name,
@@ -1129,6 +1193,8 @@ function createStickerRecord(item, status, notes = "", existing = null) {
     groupName: item.groupName,
     representedName: item.representedName || "",
     variant: item.variant || "",
+    stickerType: item.stickerType || "standard",
+    stickerTypeLabel: item.stickerTypeLabel || getStickerTypeLabel(item.stickerType),
     status,
     quantity: status === "owned" || status === "duplicate" ? 1 : 0,
     notes,
@@ -1150,7 +1216,10 @@ function updateEmptyState() {
 }
 
 function updateFilterClearButton() {
-  const hasFilter = els.searchInput.value.trim() || els.statusFilter.value !== "all";
+  const hasFilter =
+    els.searchInput.value.trim() ||
+    els.statusFilter.value !== "all" ||
+    els.stickerTypeFilter.value !== "all";
   els.clearFilterButton.classList.toggle("hidden", !hasFilter);
 }
 
@@ -1248,6 +1317,7 @@ function registerEvents() {
   els.clearFilterButton.addEventListener("click", () => {
     els.searchInput.value = "";
     els.statusFilter.value = "all";
+    els.stickerTypeFilter.value = "all";
     renderCollection();
   });
 
@@ -1259,7 +1329,7 @@ function registerEvents() {
     renderCollection();
   });
 
-  [els.searchInput, els.statusFilter].forEach((el) => {
+  [els.searchInput, els.statusFilter, els.stickerTypeFilter].forEach((el) => {
     el.addEventListener("input", renderCollection);
     el.addEventListener("change", renderCollection);
   });
