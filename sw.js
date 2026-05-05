@@ -1,4 +1,4 @@
-const CACHE_NAME = "copa-2026-album-v18";
+const CACHE_NAME = "copa-2026-album-v20";
 const FLAG_CODES = [
   "ar",
   "at",

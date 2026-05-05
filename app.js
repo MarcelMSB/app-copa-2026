@@ -3,6 +3,7 @@ const DB_VERSION = 2;
 const ALBUM_STORE = "albums";
 const STICKER_STORE = "stickers";
 const VIEW_MODE_STORAGE_KEY = "copa-2026-view-mode";
+const THEME_STORAGE_KEY = "copa-2026-theme";
 const DEFAULT_VIEW_MODE = "group";
 
 const PANINI_ALBUM = {
@@ -201,6 +202,8 @@ const ITEMS_BY_TEAM = new Map(TEAMS.map((team) => [
   COLLECTION_ITEMS.filter((item) => item.teamCode === team.code)
 ]));
 
+applySavedTheme();
+
 const state = {
   db: null,
   albums: [],
@@ -224,6 +227,8 @@ const els = {
   albumList: document.querySelector("#albumList"),
   emptyAlbums: document.querySelector("#emptyAlbums"),
   backButton: document.querySelector("#backButton"),
+  themeToggleButton: document.querySelector("#themeToggleButton"),
+  themeToggleIcon: document.querySelector("#themeToggleIcon"),
   installButton: document.querySelector("#installButton"),
   syncStatus: document.querySelector("#syncStatus"),
   stickersTitle: document.querySelector("#stickersTitle"),
@@ -351,6 +356,60 @@ function setViewMode(mode) {
   }
   const input = els.modeOptions.querySelector(`input[value="${state.viewMode}"]`);
   if (input) input.checked = true;
+}
+
+function getSystemTheme() {
+  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+}
+
+function getSavedThemePreference() {
+  try {
+    const saved = window.localStorage.getItem(THEME_STORAGE_KEY);
+    return ["light", "dark", "system"].includes(saved) ? saved : "system";
+  } catch {
+    return "system";
+  }
+}
+
+function resolveTheme(preference = getSavedThemePreference()) {
+  return preference === "system" ? getSystemTheme() : preference;
+}
+
+function applyThemePreference(preference) {
+  const theme = resolveTheme(preference);
+  document.documentElement.dataset.theme = theme;
+  document.documentElement.style.colorScheme = theme;
+
+  if (els.themeToggleIcon) {
+    els.themeToggleIcon.textContent = theme === "dark" ? "☀" : "☾";
+  }
+
+  if (els.themeToggleButton) {
+    els.themeToggleButton.setAttribute("aria-label", theme === "dark" ? "Usar modo claro" : "Usar modo escuro");
+    els.themeToggleButton.title = theme === "dark" ? "Modo claro" : "Modo escuro";
+  }
+
+  document.querySelector('meta[name="theme-color"]')?.setAttribute("content", theme === "dark" ? "#101715" : "#0f6b57");
+}
+
+function applySavedTheme() {
+  const preference = getSavedThemePreference();
+  document.documentElement.dataset.theme = resolveTheme(preference);
+  document.documentElement.style.colorScheme = resolveTheme(preference);
+  document.querySelector('meta[name="theme-color"]')?.setAttribute("content", resolveTheme(preference) === "dark" ? "#101715" : "#0f6b57");
+}
+
+function toggleThemePreference() {
+  const current = resolveTheme();
+  const next = current === "dark" ? "light" : "dark";
+
+  try {
+    window.localStorage.setItem(THEME_STORAGE_KEY, next);
+  } catch {
+    // Theme still changes for the current session.
+  }
+
+  applyThemePreference(next);
 }
 
 function openDatabase() {
@@ -1131,6 +1190,13 @@ function handleCollectionBack() {
 }
 
 function registerEvents() {
+  els.themeToggleButton.addEventListener("click", toggleThemePreference);
+  window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
+    if (getSavedThemePreference() === "system") {
+      applyThemePreference("system");
+    }
+  });
+
   els.albumForm.addEventListener("submit", async (event) => {
     event.preventDefault();
 
@@ -1241,6 +1307,7 @@ async function init() {
   }
 
   state.db = await openDatabase();
+  applyThemePreference(getSavedThemePreference());
   registerEvents();
   await loadAlbums();
   await registerServiceWorker();

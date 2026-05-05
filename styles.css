@@ -1,5 +1,5 @@
 :root {
-  color-scheme: light;
+  color-scheme: light dark;
   --bg: #f4f6f2;
   --surface: #ffffff;
   --surface-soft: #f9faf7;
@@ -12,6 +12,51 @@
   --red: #c14d3f;
   --blue: #2f6f9f;
   --shadow: 0 18px 50px rgba(23, 35, 31, 0.1);
+  --topbar-bg: rgba(244, 246, 242, 0.9);
+  --field-bg: #ffffff;
+  --focus-ring: rgba(15, 107, 87, 0.15);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+    --bg: #101715;
+    --surface: #17211e;
+    --surface-soft: #1d2925;
+    --ink: #edf5f1;
+    --muted: #a8b8b2;
+    --line: #2f403b;
+    --green: #20a383;
+    --green-strong: #38c29e;
+    --yellow: #f5c542;
+    --red: #f07363;
+    --blue: #69a8d6;
+    --shadow: 0 18px 50px rgba(0, 0, 0, 0.28);
+    --topbar-bg: rgba(16, 23, 21, 0.9);
+    --field-bg: #101715;
+    --focus-ring: rgba(32, 163, 131, 0.22);
+  }
+}
+
+:root[data-theme="dark"] {
+  --bg: #101715;
+  --surface: #17211e;
+  --surface-soft: #1d2925;
+  --ink: #edf5f1;
+  --muted: #a8b8b2;
+  --line: #2f403b;
+  --green: #20a383;
+  --green-strong: #38c29e;
+  --yellow: #f5c542;
+  --red: #f07363;
+  --blue: #69a8d6;
+  --shadow: 0 18px 50px rgba(0, 0, 0, 0.28);
+  --topbar-bg: rgba(16, 23, 21, 0.9);
+  --field-bg: #101715;
+  --focus-ring: rgba(32, 163, 131, 0.22);
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
 }
 
 * {
@@ -56,7 +101,7 @@ button {
     calc(clamp(14px, 4vw, 40px) + env(safe-area-inset-right))
     12px
     calc(clamp(14px, 4vw, 40px) + env(safe-area-inset-left));
-  background: rgba(244, 246, 242, 0.9);
+  background: var(--topbar-bg);
   border-bottom: 1px solid var(--line);
   backdrop-filter: blur(14px);
 }
@@ -80,6 +125,24 @@ button {
 .brand span {
   color: var(--muted);
   font-size: 0.86rem;
+}
+
+.theme-button {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  min-width: 42px;
+  min-height: 42px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--ink);
+  font-weight: 900;
+}
+
+.theme-button span {
+  line-height: 1;
+  font-size: 1.1rem;
 }
 
 main {
@@ -281,7 +344,7 @@ select {
   border: 1px solid var(--line);
   border-radius: 6px;
   padding: 0 12px;
-  background: #fff;
+  background: var(--field-bg);
   color: var(--ink);
   outline: none;
 }
@@ -289,7 +352,7 @@ select {
 input:focus,
 select:focus {
   border-color: var(--green);
-  box-shadow: 0 0 0 3px rgba(15, 107, 87, 0.15);
+  box-shadow: 0 0 0 3px var(--focus-ring);
 }
 
 .primary-button,
@@ -649,7 +712,7 @@ select:focus {
   width: 27px;
   height: 27px;
   border-radius: 999px;
-  background: #fff;
+  background: var(--field-bg);
   border: 1px solid var(--line);
   font-style: normal;
   font-size: 1rem;
@@ -701,10 +764,28 @@ select:focus {
 .sticker-tile.owned {
   border-color: var(--green);
   background:
-    linear-gradient(180deg, rgba(15, 107, 87, 0.18), rgba(255, 255, 255, 0.98));
+    linear-gradient(180deg, rgba(15, 107, 87, 0.18), var(--surface));
   box-shadow:
     inset 0 0 0 2px rgba(15, 107, 87, 0.2),
     0 8px 18px rgba(15, 107, 87, 0.14);
+}
+
+:root[data-theme="dark"] .sticker-tile.owned {
+  background:
+    linear-gradient(180deg, rgba(32, 163, 131, 0.34), rgba(23, 33, 30, 0.98));
+  box-shadow:
+    inset 0 0 0 2px rgba(32, 163, 131, 0.28),
+    0 8px 18px rgba(32, 163, 131, 0.18);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) .sticker-tile.owned {
+    background:
+      linear-gradient(180deg, rgba(32, 163, 131, 0.34), rgba(23, 33, 30, 0.98));
+    box-shadow:
+      inset 0 0 0 2px rgba(32, 163, 131, 0.28),
+      0 8px 18px rgba(32, 163, 131, 0.18);
+  }
 }
 
 .sticker-tile.noted::after {
@@ -723,7 +804,7 @@ select:focus {
   height: 24px;
   border-radius: 4px;
   border: 1px solid var(--line);
-  background: #fff;
+  background: var(--field-bg);
   font-size: 1.15rem !important;
   line-height: 1;
   overflow: hidden;
