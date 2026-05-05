@@ -686,12 +686,13 @@ select:focus {
 }
 
 .browse-card {
+  position: relative;
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   gap: 10px;
   align-items: center;
   min-height: 96px;
-  padding: 12px;
+  padding: 12px 12px 36px;
 }
 
 .browse-card:hover,
@@ -744,8 +745,31 @@ select:focus {
 }
 
 .browse-meta {
-  grid-column: 2 / -1;
+  position: absolute;
+  right: 10px;
+  bottom: 9px;
+  min-height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 9px;
+  border-radius: 999px;
+  background: rgba(15, 107, 87, 0.1);
+  color: var(--green);
+  font-size: 0.78rem;
   font-weight: 850;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) .browse-meta {
+    background: rgba(32, 163, 131, 0.18);
+    color: var(--green-strong);
+  }
+}
+
+:root[data-theme="dark"] .browse-meta {
+  background: rgba(32, 163, 131, 0.18);
+  color: var(--green-strong);
 }
 
 .sticker-tile {
