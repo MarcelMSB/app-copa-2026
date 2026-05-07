@@ -56,14 +56,18 @@ const GROUPS = [
         code: "PANINI",
         name: "Panini",
         icon: "📘",
+        logoSrc: "assets/brands/panini.png",
+        bubbleSrc: "assets/brands/panini.png",
         stickers: [{ idSuffix: "00", label: "PN 00", number: 0 }]
       },
-      { code: "FWC", name: "FIFA World Cup History", icon: "🏆", count: 19 },
-      { code: "CC", name: "Coca-Cola", icon: "🥤", count: 14 },
+      { code: "FWC", name: "FIFA World Cup History", icon: "🏆", bubbleSrc: "assets/brands/fwc-bubble.svg", count: 19 },
+      { code: "CC", name: "Coca-Cola", icon: "🥤", logoSrc: "assets/brands/coca-cola.svg", bubbleSrc: "assets/brands/coca-cola-bubble.svg", optionalSet: "cocacola", count: 14 },
       {
         code: "MC",
         name: "McDonald's",
         icon: "🍟",
+        logoSrc: "assets/brands/mcdonalds.svg",
+        bubbleSrc: "assets/brands/mcdonalds-bubble.svg",
         optionalSet: "mcdonalds",
         stickers: MCDONALDS_SELECTIONS.map((selection) => ({
           idSuffix: selection.code,
@@ -219,6 +223,9 @@ const state = {
   viewMode: getSavedViewMode(),
   selectedGroupId: null,
   selectedTeamCode: null,
+  reorderMode: false,
+  compareMode: false,
+  compareAlbumIds: new Set(),
   deferredInstallPrompt: null
 };
 
@@ -228,8 +235,19 @@ const els = {
   albumForm: document.querySelector("#albumForm"),
   albumName: document.querySelector("#albumName"),
   includeMcDonalds: document.querySelector("#includeMcDonalds"),
+  includeCocaCola: document.querySelector("#includeCocaCola"),
   importAlbumButton: document.querySelector("#importAlbumButton"),
   importAlbumInput: document.querySelector("#importAlbumInput"),
+  compareModeButton: document.querySelector("#compareModeButton"),
+  compareActions: document.querySelector("#compareActions"),
+  compareSelectionMeta: document.querySelector("#compareSelectionMeta"),
+  runCompareButton: document.querySelector("#runCompareButton"),
+  cancelCompareButton: document.querySelector("#cancelCompareButton"),
+  comparePanel: document.querySelector("#comparePanel"),
+  compareTitle: document.querySelector("#compareTitle"),
+  compareResult: document.querySelector("#compareResult"),
+  closeCompareButton: document.querySelector("#closeCompareButton"),
+  finishReorderButton: document.querySelector("#finishReorderButton"),
   albumList: document.querySelector("#albumList"),
   emptyAlbums: document.querySelector("#emptyAlbums"),
   backButton: document.querySelector("#backButton"),
@@ -239,6 +257,7 @@ const els = {
   syncStatus: document.querySelector("#syncStatus"),
   stickersTitle: document.querySelector("#stickersTitle"),
   albumMeta: document.querySelector("#albumMeta"),
+  collectionSummary: document.querySelector("#collectionSummary"),
   progressRing: document.querySelector("#progressRing"),
   progressPercent: document.querySelector("#progressPercent"),
   progressSummary: document.querySelector("#progressSummary"),
@@ -283,6 +302,8 @@ function buildCollectionItems() {
         groupId: team.groupId,
         groupName: team.groupName,
         flagCode: sticker.flagCode || team.flagCode,
+        bubbleSrc: sticker.bubbleSrc || (sticker.flagCode ? "" : team.bubbleSrc),
+        logoSrc: sticker.logoSrc || (sticker.flagCode ? "" : team.logoSrc),
         icon: team.icon,
         optionalSet: team.optionalSet,
         representedName: sticker.representedName,
@@ -303,6 +324,8 @@ function buildCollectionItems() {
         groupId: team.groupId,
         groupName: team.groupName,
         flagCode: team.flagCode,
+        bubbleSrc: team.bubbleSrc,
+        logoSrc: team.logoSrc,
         icon: team.icon,
         optionalSet: team.optionalSet,
         stickerType: getStickerType(team, number),
@@ -330,6 +353,7 @@ function formatStickerLabel(code, number) {
 function isOptionalSetEnabled(optionalSet, album = state.activeAlbum) {
   if (!optionalSet) return true;
   if (optionalSet === "mcdonalds") return Boolean(album?.includeMcDonalds);
+  if (optionalSet === "cocacola") return album?.includeCocaCola !== false;
   return false;
 }
 
@@ -351,6 +375,14 @@ function getFlagSource(entity) {
 }
 
 function flagHtml(entity, className = "flag-img") {
+  if (entity.bubbleSrc) {
+    return `<img class="${className} bubble-icon-img" src="${entity.bubbleSrc}" alt="Ícone ${entity.name || entity.teamName}" loading="lazy">`;
+  }
+
+  if (entity.logoSrc) {
+    return `<img class="${className} brand-logo-img" src="${entity.logoSrc}" alt="Logo ${entity.name || entity.teamName}" loading="lazy">`;
+  }
+
   const src = getFlagSource(entity);
   if (src) {
     return `<img class="${className}" src="${src}" alt="Bandeira ${entity.name || entity.teamName}" loading="lazy">`;
@@ -547,12 +579,14 @@ async function exportAlbum(album) {
   const stickers = await getStickersForAlbum(album.id);
   const payload = {
     app: "app-copa-2026",
-    version: 2,
+    version: 4,
     exportedAt: new Date().toISOString(),
     album: {
       name: album.name,
       collectionId: album.collectionId,
       includeMcDonalds: Boolean(album.includeMcDonalds),
+      includeCocaCola: album.includeCocaCola !== false,
+      sortOrder: album.sortOrder,
       createdAt: album.createdAt,
       updatedAt: Date.now()
     },
@@ -611,6 +645,8 @@ function normalizeImportPayload(payload) {
     name: normalizeImportedAlbumName(payload.album.name),
     collectionId: payload.album.collectionId || PANINI_ALBUM.collectionId,
     includeMcDonalds: Boolean(payload.album.includeMcDonalds),
+    includeCocaCola: payload.album.includeCocaCola !== false,
+    sortOrder: getNewAlbumSortOrder(),
     createdAt: Date.now(),
     updatedAt: Date.now()
   });
@@ -669,13 +705,26 @@ async function loadAlbums() {
   for (const album of albums) {
     const nextAlbum = normalizeAlbum(album);
     normalized.push(nextAlbum);
+  }
 
-    if (album.collectionId !== nextAlbum.collectionId || album.total !== nextAlbum.total) {
-      await putItem(ALBUM_STORE, nextAlbum);
+  normalized.sort(compareAlbumOrder);
+
+  for (const [index, album] of normalized.entries()) {
+    const previous = albums.find((item) => item.id === album.id) || {};
+    album.sortOrder = index;
+
+    if (
+      previous.collectionId !== album.collectionId ||
+      previous.total !== album.total ||
+      previous.includeCocaCola !== album.includeCocaCola ||
+      previous.includeMcDonalds !== album.includeMcDonalds ||
+      previous.sortOrder !== album.sortOrder
+    ) {
+      await putItem(ALBUM_STORE, album);
     }
   }
 
-  state.albums = normalized.sort((a, b) => b.createdAt - a.createdAt);
+  state.albums = normalized;
   state.allStickers = await getAll(STICKER_STORE);
   renderAlbums();
 }
@@ -691,7 +740,9 @@ function normalizeAlbum(album) {
   const normalized = {
     ...album,
     includeMcDonalds: Boolean(album.includeMcDonalds),
+    includeCocaCola: album.includeCocaCola !== false,
     collectionId: PANINI_ALBUM.collectionId,
+    sortOrder: Number.isFinite(album.sortOrder) ? album.sortOrder : -(album.createdAt || Date.now()),
     updatedAt: album.updatedAt || Date.now()
   };
 
@@ -699,6 +750,17 @@ function normalizeAlbum(album) {
     ...normalized,
     total: getCollectionItems(normalized).length
   };
+}
+
+function compareAlbumOrder(a, b) {
+  const orderDiff = a.sortOrder - b.sortOrder;
+  if (orderDiff !== 0) return orderDiff;
+  return b.createdAt - a.createdAt;
+}
+
+function getNewAlbumSortOrder() {
+  if (!state.albums.length) return 0;
+  return Math.min(...state.albums.map((album) => album.sortOrder || 0)) - 1;
 }
 
 function savePulse() {
@@ -726,6 +788,52 @@ function isOwned(sticker) {
 
 function ownedCount(stickers = state.stickers) {
   return stickers.filter((sticker) => sticker.itemId && isOwned(sticker)).length;
+}
+
+function getCollectionSummaryGroups(album = state.activeAlbum) {
+  const groups = [
+    {
+      key: "base",
+      label: "Panini",
+      items: getCollectionItems(album).filter((item) => !item.optionalSet)
+    }
+  ];
+
+  if (album?.includeCocaCola !== false) {
+    groups.push({
+      key: "cocacola",
+      label: "Coca-Cola",
+      items: getCollectionItems(album).filter((item) => item.optionalSet === "cocacola")
+    });
+  }
+
+  if (album?.includeMcDonalds) {
+    groups.push({
+      key: "mcdonalds",
+      label: "McDonald's",
+      items: getCollectionItems(album).filter((item) => item.optionalSet === "mcdonalds")
+    });
+  }
+
+  return groups;
+}
+
+function renderCollectionSummary(album) {
+  const stickerMap = getStickerMapFromList(state.stickers);
+
+  els.collectionSummary.textContent = "";
+  getCollectionSummaryGroups(album)
+    .filter((group) => group.items.length)
+    .forEach((group) => {
+      const owned = group.items.filter((item) => isOwned(stickerMap.get(item.id))).length;
+      const item = document.createElement("div");
+      item.className = "collection-summary-item";
+      item.innerHTML = `
+        <span>${group.label}</span>
+        <strong>${owned}/${group.items.length}</strong>
+      `;
+      els.collectionSummary.append(item);
+    });
 }
 
 function getVisibleItems() {
@@ -831,12 +939,10 @@ function buildCollectionShareText() {
   return lines.join("\n").trim();
 }
 
-async function shareCollectionText() {
-  const text = buildCollectionShareText();
-
+async function shareText(text, title = "Album Copa 2026") {
   if (navigator.share) {
     await navigator.share({
-      title: "Album Copa 2026",
+      title,
       text
     });
     return;
@@ -851,10 +957,267 @@ async function shareCollectionText() {
   window.prompt("Copie o resumo:", text);
 }
 
+async function shareCollectionText() {
+  await shareText(buildCollectionShareText());
+}
+
 function shareCollectionOnWhatsApp() {
   const text = buildCollectionShareText();
   const url = `https://wa.me/?text=${encodeURIComponent(text)}`;
   window.open(url, "_blank", "noopener");
+}
+
+function getStickerMapFromList(stickers) {
+  return new Map(stickers.filter((sticker) => sticker.itemId).map((sticker) => [sticker.itemId, sticker]));
+}
+
+function getMissingItemsForAlbum(album, stickers) {
+  const stickerMap = getStickerMapFromList(stickers);
+  return getCollectionItems(album).filter((item) => !isOwned(stickerMap.get(item.id)));
+}
+
+function getOwnedItemsForAlbum(album, stickers) {
+  const stickerMap = getStickerMapFromList(stickers);
+  return getCollectionItems(album).filter((item) => isOwned(stickerMap.get(item.id)));
+}
+
+function appendItemsByTeamLines(lines, items) {
+  const grouped = groupItemsByTeam(items);
+
+  grouped.forEach((teamItems, teamCode) => {
+    const team = TEAM_BY_CODE.get(teamCode);
+    lines.push(`${team?.groupName || "Outras"} - ${team?.name || teamCode} (${teamCode})`);
+    teamItems.forEach((item) => lines.push(`- ${item.label}`));
+    lines.push("");
+  });
+}
+
+function buildMissingShareText(album, stickers) {
+  const missingItems = getMissingItemsForAlbum(album, stickers);
+  const lines = [
+    `Figurinhas faltantes - ${album.name}`,
+    `${missingItems.length} faltando`,
+    ""
+  ];
+
+  if (!missingItems.length) {
+    lines.push("Nenhuma figurinha faltando.");
+    return lines.join("\n");
+  }
+
+  appendItemsByTeamLines(lines, missingItems);
+  return lines.join("\n").trim();
+}
+
+function getAlbumBrandLogos(album) {
+  return [
+    { name: "Panini", src: "assets/brands/panini.png" },
+    album.includeCocaCola !== false ? { name: "Coca-Cola", src: "assets/brands/coca-cola.svg" } : null,
+    album.includeMcDonalds ? { name: "McDonald's", src: "assets/brands/mcdonalds.svg" } : null
+  ].filter(Boolean);
+}
+
+function renderAlbumCover(cover, album) {
+  const logos = getAlbumBrandLogos(album);
+
+  cover.className = `album-cover album-cover-brands brand-count-${logos.length}`;
+  cover.textContent = "";
+  logos.forEach((logo) => {
+    const item = document.createElement("span");
+    const img = document.createElement("img");
+    img.src = logo.src;
+    img.alt = logo.name;
+    item.append(img);
+    cover.append(item);
+  });
+}
+
+async function shareAlbumMissing(album, useWhatsApp = false) {
+  const whatsappWindow = useWhatsApp ? window.open("about:blank", "_blank") : null;
+  const stickers = await getStickersForAlbum(album.id);
+  const text = buildMissingShareText(album, stickers);
+
+  if (useWhatsApp) {
+    const url = `https://wa.me/?text=${encodeURIComponent(text)}`;
+    if (whatsappWindow) {
+      whatsappWindow.opener = null;
+      whatsappWindow.location.href = url;
+    } else {
+      window.open(url, "_blank", "noopener");
+    }
+    return;
+  }
+
+  await shareText(text, `Faltantes - ${album.name}`);
+}
+
+function setReorderMode(enabled) {
+  state.reorderMode = enabled;
+  els.finishReorderButton.classList.toggle("hidden", !enabled);
+  renderAlbums();
+}
+
+async function persistAlbumOrder() {
+  for (const [index, album] of state.albums.entries()) {
+    album.sortOrder = index;
+    album.updatedAt = Date.now();
+    await putItem(ALBUM_STORE, album);
+  }
+}
+
+async function moveAlbum(albumId, direction) {
+  const index = state.albums.findIndex((album) => album.id === albumId);
+  const nextIndex = index + direction;
+
+  if (index < 0 || nextIndex < 0 || nextIndex >= state.albums.length) return;
+
+  const [album] = state.albums.splice(index, 1);
+  state.albums.splice(nextIndex, 0, album);
+  await persistAlbumOrder();
+  renderAlbums();
+  savePulse();
+}
+
+function attachAlbumLongPress(openButton) {
+  let timer = null;
+  let longPressed = false;
+
+  const clearTimer = () => {
+    if (timer) window.clearTimeout(timer);
+    timer = null;
+  };
+
+  openButton.addEventListener("pointerdown", () => {
+    longPressed = false;
+    timer = window.setTimeout(() => {
+      longPressed = true;
+      openButton.dataset.longPressed = "true";
+      setReorderMode(true);
+    }, 650);
+  });
+
+  openButton.addEventListener("pointerup", clearTimer);
+  openButton.addEventListener("pointerleave", clearTimer);
+  openButton.addEventListener("pointercancel", clearTimer);
+  openButton.addEventListener("contextmenu", (event) => event.preventDefault());
+  openButton.addEventListener("click", (event) => {
+    if (!longPressed && openButton.dataset.longPressed !== "true") return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    longPressed = false;
+    openButton.dataset.longPressed = "false";
+  }, true);
+}
+
+function setCompareMode(enabled) {
+  state.compareMode = enabled;
+  if (!enabled) {
+    state.compareAlbumIds.clear();
+  }
+
+  els.compareActions.classList.toggle("hidden", !enabled);
+  els.compareModeButton.classList.toggle("hidden", enabled);
+  updateCompareControls();
+  renderAlbums();
+}
+
+function updateCompareControls() {
+  const count = state.compareAlbumIds.size;
+
+  els.compareSelectionMeta.textContent = count === 1 ? "1 álbum selecionado" : `${count} álbuns selecionados`;
+  els.runCompareButton.classList.toggle("hidden", count !== 2);
+}
+
+function toggleCompareSelection(albumId, checked) {
+  if (checked && state.compareAlbumIds.size >= 2 && !state.compareAlbumIds.has(albumId)) {
+    window.alert("Selecione somente 2 álbuns para comparar.");
+    renderAlbums();
+    return;
+  }
+
+  if (checked) {
+    state.compareAlbumIds.add(albumId);
+  } else {
+    state.compareAlbumIds.delete(albumId);
+  }
+
+  updateCompareControls();
+  renderAlbums();
+}
+
+function getDifferenceItems(sourceAlbum, sourceStickers, targetStickers) {
+  const targetMap = getStickerMapFromList(targetStickers);
+  return getOwnedItemsForAlbum(sourceAlbum, sourceStickers)
+    .filter((item) => !isOwned(targetMap.get(item.id)));
+}
+
+function createCompareColumn(title, items) {
+  const section = document.createElement("section");
+  section.className = "compare-column";
+
+  const heading = document.createElement("h3");
+  heading.textContent = title;
+  section.append(heading);
+
+  const count = document.createElement("p");
+  count.className = "compare-count";
+  count.textContent = `${items.length} figurinhas`;
+  section.append(count);
+
+  if (!items.length) {
+    const empty = document.createElement("p");
+    empty.className = "compare-empty";
+    empty.textContent = "Nenhuma diferença encontrada.";
+    section.append(empty);
+    return section;
+  }
+
+  const grouped = groupItemsByTeam(items);
+  grouped.forEach((teamItems, teamCode) => {
+    const team = TEAM_BY_CODE.get(teamCode);
+    const group = document.createElement("div");
+    group.className = "compare-team";
+
+    const teamTitle = document.createElement("strong");
+    teamTitle.textContent = `${team?.groupName || "Outras"} - ${team?.name || teamCode} (${teamCode})`;
+    group.append(teamTitle);
+
+    const list = document.createElement("ul");
+    teamItems.forEach((item) => {
+      const listItem = document.createElement("li");
+      listItem.textContent = item.label;
+      list.append(listItem);
+    });
+    group.append(list);
+    section.append(group);
+  });
+
+  return section;
+}
+
+async function compareSelectedAlbums() {
+  const ids = Array.from(state.compareAlbumIds);
+  if (ids.length !== 2) return;
+
+  const [albumA, albumB] = ids.map((id) => state.albums.find((album) => album.id === id));
+  if (!albumA || !albumB) return;
+
+  const [stickersA, stickersB] = await Promise.all([
+    getStickersForAlbum(albumA.id),
+    getStickersForAlbum(albumB.id)
+  ]);
+  const onlyA = getDifferenceItems(albumA, stickersA, stickersB);
+  const onlyB = getDifferenceItems(albumB, stickersB, stickersA);
+
+  els.compareTitle.textContent = `${albumA.name} x ${albumB.name}`;
+  els.compareResult.textContent = "";
+  els.compareResult.append(
+    createCompareColumn(`Tem em ${albumA.name} e falta em ${albumB.name}`, onlyA),
+    createCompareColumn(`Tem em ${albumB.name} e falta em ${albumA.name}`, onlyB)
+  );
+  els.comparePanel.classList.remove("hidden");
+  setCompareMode(false);
+  els.comparePanel.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
 function renderAlbums() {
@@ -864,25 +1227,60 @@ function renderAlbums() {
   state.albums.forEach((album) => {
     const node = els.albumCardTemplate.content.firstElementChild.cloneNode(true);
     const openButton = node.querySelector(".album-open");
+    const cardTop = node.querySelector(".album-card-top");
+    const compareChoice = node.querySelector(".album-compare-choice");
+    const compareInput = compareChoice.querySelector("input");
+    const reorderControls = node.querySelector(".album-reorder-controls");
+    const moveUpButton = node.querySelector(".move-up-button");
+    const moveDownButton = node.querySelector(".move-down-button");
+    const missingShareButton = node.querySelector(".missing-share-button");
+    const missingWhatsappButton = node.querySelector(".missing-whatsapp-button");
     const exportButton = node.querySelector(".export-button");
     const deleteButton = node.querySelector(".delete-button");
+    const cover = node.querySelector(".album-cover");
     const title = node.querySelector("strong");
     const meta = node.querySelector(".album-info span");
+    const index = state.albums.findIndex((item) => item.id === album.id);
     const count = state.allStickers.filter((sticker) => sticker.albumId === album.id && isOwned(sticker)).length;
 
+    node.classList.toggle("album-card-reordering", state.reorderMode);
+    node.classList.toggle("album-card-comparing", state.compareMode);
+    cardTop.classList.toggle("hidden", !state.compareMode && !state.reorderMode);
+    compareChoice.classList.toggle("hidden", !state.compareMode);
+    reorderControls.classList.toggle("hidden", !state.reorderMode);
+    compareInput.checked = state.compareAlbumIds.has(album.id);
+    moveUpButton.disabled = index === 0;
+    moveDownButton.disabled = index === state.albums.length - 1;
     title.textContent = album.name;
-    meta.textContent = `${count} obtidas - ${album.includeMcDonalds ? "com McDonald's - " : ""}criado em ${formatDate(album.createdAt)}`;
+    renderAlbumCover(cover, album);
+    meta.textContent = `${count} obtidas - criado em ${formatDate(album.createdAt)}`;
 
+    attachAlbumLongPress(openButton);
     openButton.addEventListener("click", () => openAlbum(album.id));
+    compareInput.addEventListener("change", () => toggleCompareSelection(album.id, compareInput.checked));
+    moveUpButton.addEventListener("click", () => moveAlbum(album.id, -1));
+    moveDownButton.addEventListener("click", () => moveAlbum(album.id, 1));
+    missingShareButton.addEventListener("click", async () => {
+      try {
+        await shareAlbumMissing(album);
+      } catch (error) {
+        if (error?.name !== "AbortError") {
+          window.alert("Não foi possível compartilhar os faltantes agora.");
+        }
+      }
+    });
+    missingWhatsappButton.addEventListener("click", () => shareAlbumMissing(album, true));
     exportButton.addEventListener("click", () => exportAlbum(album));
     deleteButton.addEventListener("click", async () => {
       const confirmed = window.confirm(`Excluir "${album.name}" e todas as figurinhas cadastradas nele?`);
       if (!confirmed) return;
 
       await deleteAlbumWithStickers(album.id);
+      state.compareAlbumIds.delete(album.id);
       state.allStickers = state.allStickers.filter((sticker) => sticker.albumId !== album.id);
       state.stickers = state.stickers.filter((sticker) => sticker.albumId !== album.id);
       await loadAlbums();
+      updateCompareControls();
       savePulse();
     });
 
@@ -922,9 +1320,10 @@ function renderStickerScreen() {
   const missing = total - owned;
 
   els.stickersTitle.textContent = album.name;
-  els.albumMeta.textContent = `${owned} obtidas - ${missing} faltando`;
+  els.albumMeta.textContent = "";
+  renderCollectionSummary(album);
   els.progressPercent.textContent = `${percent}%`;
-  els.progressSummary.textContent = `${owned} obtidas`;
+  els.progressSummary.textContent = `${owned} obtidas - ${missing} faltando`;
   els.progressRing.style.background = `conic-gradient(var(--yellow) ${percent}%, rgba(255, 255, 255, 0.2) 0%)`;
 
   renderCollection();
@@ -1273,6 +1672,8 @@ function registerEvents() {
       id: crypto.randomUUID(),
       name: els.albumName.value.trim() || PANINI_ALBUM.name,
       includeMcDonalds: els.includeMcDonalds.checked,
+      includeCocaCola: els.includeCocaCola.checked,
+      sortOrder: getNewAlbumSortOrder(),
       createdAt: Date.now(),
       updatedAt: Date.now()
     });
@@ -1298,6 +1699,17 @@ function registerEvents() {
       window.alert(error.message || "Não foi possível importar este arquivo.");
     }
   });
+
+  els.compareModeButton.addEventListener("click", () => setCompareMode(true));
+  els.cancelCompareButton.addEventListener("click", () => {
+    setCompareMode(false);
+    els.comparePanel.classList.add("hidden");
+  });
+  els.runCompareButton.addEventListener("click", compareSelectedAlbums);
+  els.closeCompareButton.addEventListener("click", () => {
+    els.comparePanel.classList.add("hidden");
+  });
+  els.finishReorderButton.addEventListener("click", () => setReorderMode(false));
 
   els.backButton.addEventListener("click", closeAlbum);
   els.shareCollectionButton.addEventListener("click", async () => {
