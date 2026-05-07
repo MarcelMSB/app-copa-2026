@@ -597,6 +597,10 @@ select:focus {
   display: block;
 }
 
+.missing-whatsapp-button img {
+  filter: invert(67%) sepia(72%) saturate(635%) hue-rotate(88deg) brightness(93%) contrast(88%);
+}
+
 .missing-whatsapp-button {
   color: #25d366;
   border-color: rgba(37, 211, 102, 0.55);
