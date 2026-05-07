@@ -232,6 +232,9 @@ const state = {
 const els = {
   albumsScreen: document.querySelector("#albumsScreen"),
   stickersScreen: document.querySelector("#stickersScreen"),
+  albumCreateActions: document.querySelector("#albumCreateActions"),
+  showAlbumFormButton: document.querySelector("#showAlbumFormButton"),
+  cancelAlbumFormButton: document.querySelector("#cancelAlbumFormButton"),
   albumForm: document.querySelector("#albumForm"),
   albumName: document.querySelector("#albumName"),
   includeMcDonalds: document.querySelector("#includeMcDonalds"),
@@ -1606,6 +1609,22 @@ function getStickerId(item) {
   return `${state.activeAlbum.id}-${item.id}`;
 }
 
+function resetAlbumForm() {
+  els.albumForm.reset();
+  els.includeCocaCola.checked = true;
+}
+
+function setAlbumFormVisible(visible) {
+  els.albumForm.classList.toggle("hidden", !visible);
+  els.albumCreateActions.classList.toggle("hidden", visible);
+
+  if (visible) {
+    window.setTimeout(() => els.albumName.focus(), 0);
+  } else {
+    resetAlbumForm();
+  }
+}
+
 function updateBackButton(visible) {
   els.collectionBackButton.classList.toggle("hidden", !visible);
 }
@@ -1665,6 +1684,9 @@ function registerEvents() {
     }
   });
 
+  els.showAlbumFormButton.addEventListener("click", () => setAlbumFormVisible(true));
+  els.cancelAlbumFormButton.addEventListener("click", () => setAlbumFormVisible(false));
+
   els.albumForm.addEventListener("submit", async (event) => {
     event.preventDefault();
 
@@ -1679,7 +1701,7 @@ function registerEvents() {
     });
 
     await putItem(ALBUM_STORE, album);
-    els.albumForm.reset();
+    setAlbumFormVisible(false);
     await loadAlbums();
     savePulse();
   });

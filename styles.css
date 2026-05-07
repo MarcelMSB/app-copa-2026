@@ -293,6 +293,7 @@ h2 {
   transform: rotate(5deg);
 }
 
+.album-create-panel,
 .album-form,
 .mode-panel,
 .collection-panel {
@@ -302,12 +303,23 @@ h2 {
   box-shadow: 0 10px 30px rgba(23, 35, 31, 0.06);
 }
 
+.album-create-panel {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+}
+
+.album-create-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 14px;
+}
+
 .album-form {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto auto auto auto;
   gap: 14px;
   align-items: end;
-  padding: 16px;
 }
 
 .album-option {
@@ -1185,6 +1197,7 @@ select:focus {
   }
 
   .album-form,
+  .album-create-actions,
   .mode-panel,
   .filter-panel {
     grid-template-columns: 1fr;

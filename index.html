@@ -48,23 +48,29 @@
             </div>
           </div>
 
-          <form class="album-form" id="albumForm">
-            <label>
-              Nome do álbum
-              <input id="albumName" name="name" required maxlength="80" placeholder="Meu álbum da Copa">
-            </label>
-            <label class="album-option">
-              <input id="includeMcDonalds" type="checkbox">
-              <span>Incluir coleção McDonald's</span>
-            </label>
-            <label class="album-option">
-              <input id="includeCocaCola" type="checkbox" checked>
-              <span>Incluir coleção Coca-Cola</span>
-            </label>
-            <button class="primary-button" type="submit">Criar álbum</button>
-            <button class="ghost-button import-button" id="importAlbumButton" type="button">Importar</button>
-            <input id="importAlbumInput" class="hidden" type="file" accept="application/json,.json">
-          </form>
+          <div class="album-create-panel">
+            <div class="album-create-actions" id="albumCreateActions">
+              <button class="primary-button" id="showAlbumFormButton" type="button">Adicionar álbum</button>
+              <button class="ghost-button import-button" id="importAlbumButton" type="button">Importar</button>
+            </div>
+            <form class="album-form hidden" id="albumForm">
+              <label>
+                Nome do álbum
+                <input id="albumName" name="name" required maxlength="80" placeholder="Meu álbum da Copa">
+              </label>
+              <label class="album-option">
+                <input id="includeMcDonalds" type="checkbox">
+                <span>Incluir coleção McDonald's</span>
+              </label>
+              <label class="album-option">
+                <input id="includeCocaCola" type="checkbox" checked>
+                <span>Incluir coleção Coca-Cola</span>
+              </label>
+              <button class="primary-button" type="submit">Criar álbum</button>
+              <button class="ghost-button neutral-button" id="cancelAlbumFormButton" type="button">Cancelar</button>
+              <input id="importAlbumInput" class="hidden" type="file" accept="application/json,.json">
+            </form>
+          </div>
 
           <div class="album-toolbar">
             <button class="ghost-button neutral-button" id="compareModeButton" type="button">Comparar álbuns</button>
