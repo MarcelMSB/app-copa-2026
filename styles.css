@@ -500,6 +500,45 @@ select:focus {
   font-size: 0.86rem;
 }
 
+.compare-team-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.compare-team-title > span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.compare-team-icon {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  min-width: 26px;
+  height: 26px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--field-bg);
+  overflow: hidden;
+}
+
+.compare-team-icon img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.compare-team-icon .bubble-icon-img,
+.compare-team-icon .brand-logo-img {
+  width: 78%;
+  height: 78%;
+  object-fit: contain;
+  border-radius: 0;
+}
+
 .compare-team ul {
   display: flex;
   flex-wrap: wrap;

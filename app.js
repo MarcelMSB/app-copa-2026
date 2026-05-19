@@ -1118,14 +1118,27 @@ function toggleMissingReviewItem(itemId, button) {
   updateMissingReviewSelectionMeta();
 }
 
-function createMissingReviewGroup(teamItems, teamCode) {
+function createTeamTitleElement(teamCode) {
   const team = TEAM_BY_CODE.get(teamCode);
+  const title = document.createElement("strong");
+  title.className = "compare-team-title";
+
+  const icon = document.createElement("span");
+  icon.className = "compare-team-icon";
+  icon.innerHTML = team ? flagHtml(team) : `<span class="special-flag" aria-hidden="true">${teamCode.slice(0, 2)}</span>`;
+
+  const label = document.createElement("span");
+  label.textContent = `${team?.groupName || "Outras"} - ${team?.name || teamCode} (${teamCode})`;
+
+  title.append(icon, label);
+  return title;
+}
+
+function createMissingReviewGroup(teamItems, teamCode) {
   const group = document.createElement("div");
   group.className = "compare-team missing-review-team";
 
-  const teamTitle = document.createElement("strong");
-  teamTitle.textContent = `${team?.groupName || "Outras"} - ${team?.name || teamCode} (${teamCode})`;
-  group.append(teamTitle);
+  group.append(createTeamTitleElement(teamCode));
 
   const list = document.createElement("div");
   list.className = "missing-review-list";
@@ -1217,12 +1230,9 @@ function renderMissingReviewConfirmation() {
 
   const grouped = groupItemsByTeam(selectedItems);
   grouped.forEach((teamItems, teamCode) => {
-    const team = TEAM_BY_CODE.get(teamCode);
     const group = document.createElement("div");
     group.className = "compare-team";
-    const teamTitle = document.createElement("strong");
-    teamTitle.textContent = `${team?.groupName || "Outras"} - ${team?.name || teamCode} (${teamCode})`;
-    group.append(teamTitle);
+    group.append(createTeamTitleElement(teamCode));
     const list = document.createElement("ul");
     teamItems.forEach((item) => {
       const listItem = document.createElement("li");
@@ -1398,13 +1408,10 @@ function createCompareColumn(title, items) {
 
   const grouped = groupItemsByTeam(items);
   grouped.forEach((teamItems, teamCode) => {
-    const team = TEAM_BY_CODE.get(teamCode);
     const group = document.createElement("div");
     group.className = "compare-team";
 
-    const teamTitle = document.createElement("strong");
-    teamTitle.textContent = `${team?.groupName || "Outras"} - ${team?.name || teamCode} (${teamCode})`;
-    group.append(teamTitle);
+    group.append(createTeamTitleElement(teamCode));
 
     const list = document.createElement("ul");
     teamItems.forEach((item) => {
