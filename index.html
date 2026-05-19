@@ -93,6 +93,17 @@
             <div class="compare-result" id="compareResult"></div>
           </section>
 
+          <section class="compare-panel hidden" id="missingReviewPanel" aria-live="polite">
+            <div class="compare-panel-heading">
+              <div>
+                <p class="panel-kicker">Conferência</p>
+                <h2 id="missingReviewTitle">Figurinhas faltantes</h2>
+              </div>
+              <button class="ghost-button neutral-button" id="closeMissingReviewButton" type="button">Fechar</button>
+            </div>
+            <div class="compare-result missing-review-result" id="missingReviewResult"></div>
+          </section>
+
           <div class="album-grid" id="albumList" aria-live="polite"></div>
           <p class="empty-state hidden" id="emptyAlbums">Crie seu primeiro álbum para começar a marcar as figurinhas.</p>
         </section>
@@ -215,6 +226,9 @@
           </button>
           <button class="album-icon-action missing-whatsapp-button whatsapp-button" type="button" aria-label="Compartilhar faltantes no WhatsApp" title="WhatsApp faltantes">
             <img src="assets/ui/whatsapp.svg" alt="" aria-hidden="true">
+          </button>
+          <button class="album-icon-action missing-review-button" type="button" aria-label="Conferir figurinhas faltantes" title="Conferir faltantes">
+            <img src="assets/ui/table.svg" alt="" aria-hidden="true">
           </button>
           <button class="ghost-button export-button" type="button">Exportar</button>
           <button class="delete-icon-button delete-button" type="button" aria-label="Excluir álbum" title="Excluir álbum">

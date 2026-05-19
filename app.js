@@ -226,6 +226,11 @@ const state = {
   reorderMode: false,
   compareMode: false,
   compareAlbumIds: new Set(),
+  missingReview: {
+    albumId: null,
+    items: [],
+    selectedIds: new Set()
+  },
   deferredInstallPrompt: null
 };
 
@@ -250,6 +255,10 @@ const els = {
   compareTitle: document.querySelector("#compareTitle"),
   compareResult: document.querySelector("#compareResult"),
   closeCompareButton: document.querySelector("#closeCompareButton"),
+  missingReviewPanel: document.querySelector("#missingReviewPanel"),
+  missingReviewTitle: document.querySelector("#missingReviewTitle"),
+  missingReviewResult: document.querySelector("#missingReviewResult"),
+  closeMissingReviewButton: document.querySelector("#closeMissingReviewButton"),
   finishReorderButton: document.querySelector("#finishReorderButton"),
   albumList: document.querySelector("#albumList"),
   emptyAlbums: document.querySelector("#emptyAlbums"),
@@ -1012,6 +1021,29 @@ function buildMissingShareText(album, stickers) {
   return lines.join("\n").trim();
 }
 
+function createStickerRecordForAlbum(album, item, status, notes = "", existing = null) {
+  return {
+    id: `${album.id}-${item.id}`,
+    albumId: album.id,
+    itemId: item.id,
+    label: item.label,
+    number: item.number,
+    teamCode: item.teamCode,
+    teamName: item.teamName,
+    groupId: item.groupId,
+    groupName: item.groupName,
+    representedName: item.representedName || "",
+    variant: item.variant || "",
+    stickerType: item.stickerType || "standard",
+    stickerTypeLabel: item.stickerTypeLabel || getStickerTypeLabel(item.stickerType),
+    status,
+    quantity: status === "owned" || status === "duplicate" ? 1 : 0,
+    notes,
+    createdAt: existing?.createdAt || Date.now(),
+    updatedAt: Date.now()
+  };
+}
+
 function getAlbumBrandLogos(album) {
   return [
     { name: "Panini", src: "assets/brands/panini.png" },
@@ -1052,6 +1084,195 @@ async function shareAlbumMissing(album, useWhatsApp = false) {
   }
 
   await shareText(text, `Faltantes - ${album.name}`);
+}
+
+function resetMissingReview() {
+  state.missingReview.albumId = null;
+  state.missingReview.items = [];
+  state.missingReview.selectedIds = new Set();
+}
+
+function getMissingReviewAlbum() {
+  return state.albums.find((album) => album.id === state.missingReview.albumId);
+}
+
+function updateMissingReviewSelectionMeta() {
+  const selectedCount = state.missingReview.selectedIds.size;
+  const meta = els.missingReviewPanel.querySelector(".missing-review-meta");
+  if (meta) {
+    meta.textContent = selectedCount === 1 ? "1 figurinha marcada" : `${selectedCount} figurinhas marcadas`;
+  }
+}
+
+function toggleMissingReviewItem(itemId, button) {
+  if (state.missingReview.selectedIds.has(itemId)) {
+    state.missingReview.selectedIds.delete(itemId);
+    button.classList.remove("selected");
+    button.setAttribute("aria-pressed", "false");
+  } else {
+    state.missingReview.selectedIds.add(itemId);
+    button.classList.add("selected");
+    button.setAttribute("aria-pressed", "true");
+  }
+
+  updateMissingReviewSelectionMeta();
+}
+
+function createMissingReviewGroup(teamItems, teamCode) {
+  const team = TEAM_BY_CODE.get(teamCode);
+  const group = document.createElement("div");
+  group.className = "compare-team missing-review-team";
+
+  const teamTitle = document.createElement("strong");
+  teamTitle.textContent = `${team?.groupName || "Outras"} - ${team?.name || teamCode} (${teamCode})`;
+  group.append(teamTitle);
+
+  const list = document.createElement("div");
+  list.className = "missing-review-list";
+  teamItems.forEach((item) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "missing-review-item";
+    button.textContent = item.label;
+    button.setAttribute("aria-pressed", "false");
+    button.addEventListener("click", () => toggleMissingReviewItem(item.id, button));
+    list.append(button);
+  });
+  group.append(list);
+  return group;
+}
+
+function renderMissingReviewList(album) {
+  const items = state.missingReview.items;
+  els.missingReviewTitle.textContent = `Faltantes - ${album.name}`;
+  els.missingReviewResult.textContent = "";
+
+  const section = document.createElement("section");
+  section.className = "compare-column missing-review-column";
+
+  const heading = document.createElement("h3");
+  heading.textContent = "Marque as figurinhas encontradas";
+  section.append(heading);
+
+  const meta = document.createElement("p");
+  meta.className = "compare-count missing-review-meta";
+  meta.textContent = "0 figurinhas marcadas";
+  section.append(meta);
+
+  if (!items.length) {
+    const empty = document.createElement("p");
+    empty.className = "compare-empty";
+    empty.textContent = "Nenhuma figurinha faltando neste álbum.";
+    section.append(empty);
+    els.missingReviewResult.append(section);
+    return;
+  }
+
+  const grouped = groupItemsByTeam(items);
+  grouped.forEach((teamItems, teamCode) => {
+    section.append(createMissingReviewGroup(teamItems, teamCode));
+  });
+
+  els.missingReviewResult.append(section);
+}
+
+async function openMissingReview(album) {
+  const stickers = await getStickersForAlbum(album.id);
+  resetMissingReview();
+  state.missingReview.albumId = album.id;
+  state.missingReview.items = getMissingItemsForAlbum(album, stickers);
+
+  renderMissingReviewList(album);
+  els.missingReviewPanel.classList.remove("hidden");
+  els.missingReviewPanel.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function discardMissingReview() {
+  resetMissingReview();
+  els.missingReviewPanel.classList.add("hidden");
+}
+
+function renderMissingReviewConfirmation() {
+  const album = getMissingReviewAlbum();
+  if (!album) {
+    discardMissingReview();
+    return;
+  }
+
+  const selectedItems = state.missingReview.items.filter((item) => state.missingReview.selectedIds.has(item.id));
+  if (!selectedItems.length) {
+    discardMissingReview();
+    return;
+  }
+
+  els.missingReviewTitle.textContent = "Atualizar álbum?";
+  els.missingReviewResult.textContent = "";
+
+  const section = document.createElement("section");
+  section.className = "compare-column missing-review-column";
+
+  const heading = document.createElement("h3");
+  heading.textContent = `${selectedItems.length} figurinhas marcadas como encontradas`;
+  section.append(heading);
+
+  const grouped = groupItemsByTeam(selectedItems);
+  grouped.forEach((teamItems, teamCode) => {
+    const team = TEAM_BY_CODE.get(teamCode);
+    const group = document.createElement("div");
+    group.className = "compare-team";
+    const teamTitle = document.createElement("strong");
+    teamTitle.textContent = `${team?.groupName || "Outras"} - ${team?.name || teamCode} (${teamCode})`;
+    group.append(teamTitle);
+    const list = document.createElement("ul");
+    teamItems.forEach((item) => {
+      const listItem = document.createElement("li");
+      listItem.textContent = item.label;
+      list.append(listItem);
+    });
+    group.append(list);
+    section.append(group);
+  });
+
+  const actions = document.createElement("div");
+  actions.className = "missing-review-actions";
+
+  const updateButton = document.createElement("button");
+  updateButton.type = "button";
+  updateButton.className = "primary-button";
+  updateButton.textContent = "Atualizar álbum";
+  updateButton.addEventListener("click", updateAlbumFromMissingReview);
+
+  const discardButton = document.createElement("button");
+  discardButton.type = "button";
+  discardButton.className = "ghost-button neutral-button";
+  discardButton.textContent = "Descartar";
+  discardButton.addEventListener("click", discardMissingReview);
+
+  actions.append(updateButton, discardButton);
+  section.append(actions);
+  els.missingReviewResult.append(section);
+}
+
+async function updateAlbumFromMissingReview() {
+  const album = getMissingReviewAlbum();
+  if (!album) return;
+
+  const selectedItems = state.missingReview.items.filter((item) => state.missingReview.selectedIds.has(item.id));
+  const stickers = await getStickersForAlbum(album.id);
+  const stickerMap = getStickerMapFromList(stickers);
+
+  for (const item of selectedItems) {
+    const existing = stickerMap.get(item.id);
+    await putItem(STICKER_STORE, createStickerRecordForAlbum(album, item, "owned", existing?.notes || "", existing));
+  }
+
+  discardMissingReview();
+  await loadAlbums();
+  savePulse();
+}
+
+function handleMissingReviewClose() {
+  renderMissingReviewConfirmation();
 }
 
 function setReorderMode(enabled) {
@@ -1238,6 +1459,7 @@ function renderAlbums() {
     const moveDownButton = node.querySelector(".move-down-button");
     const missingShareButton = node.querySelector(".missing-share-button");
     const missingWhatsappButton = node.querySelector(".missing-whatsapp-button");
+    const missingReviewButton = node.querySelector(".missing-review-button");
     const exportButton = node.querySelector(".export-button");
     const deleteButton = node.querySelector(".delete-button");
     const cover = node.querySelector(".album-cover");
@@ -1273,6 +1495,7 @@ function renderAlbums() {
       }
     });
     missingWhatsappButton.addEventListener("click", () => shareAlbumMissing(album, true));
+    missingReviewButton.addEventListener("click", () => openMissingReview(album));
     exportButton.addEventListener("click", () => exportAlbum(album));
     deleteButton.addEventListener("click", async () => {
       const confirmed = window.confirm(`Excluir "${album.name}" e todas as figurinhas cadastradas nele?`);
@@ -1583,26 +1806,7 @@ async function editObservation(item) {
 }
 
 function createStickerRecord(item, status, notes = "", existing = null) {
-  return {
-    id: getStickerId(item),
-    albumId: state.activeAlbum.id,
-    itemId: item.id,
-    label: item.label,
-    number: item.number,
-    teamCode: item.teamCode,
-    teamName: item.teamName,
-    groupId: item.groupId,
-    groupName: item.groupName,
-    representedName: item.representedName || "",
-    variant: item.variant || "",
-    stickerType: item.stickerType || "standard",
-    stickerTypeLabel: item.stickerTypeLabel || getStickerTypeLabel(item.stickerType),
-    status,
-    quantity: status === "owned" || status === "duplicate" ? 1 : 0,
-    notes,
-    createdAt: existing?.createdAt || Date.now(),
-    updatedAt: Date.now()
-  };
+  return createStickerRecordForAlbum(state.activeAlbum, item, status, notes, existing);
 }
 
 function getStickerId(item) {
@@ -1731,6 +1935,7 @@ function registerEvents() {
   els.closeCompareButton.addEventListener("click", () => {
     els.comparePanel.classList.add("hidden");
   });
+  els.closeMissingReviewButton.addEventListener("click", handleMissingReviewClose);
   els.finishReorderButton.addEventListener("click", () => setReorderMode(false));
 
   els.backButton.addEventListener("click", closeAlbum);

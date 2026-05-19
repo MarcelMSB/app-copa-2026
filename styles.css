@@ -573,13 +573,19 @@ select:focus {
 
 .album-actions {
   display: grid;
-  grid-template-columns: auto auto minmax(0, 1fr) auto;
+  grid-template-columns: auto auto auto minmax(92px, 1fr) auto;
   gap: 10px;
+  align-items: center;
 }
 
 .export-button {
+  display: inline-grid;
+  place-items: center;
+  min-width: 92px;
+  width: 100%;
   color: var(--green);
   border-color: rgba(15, 107, 87, 0.3);
+  white-space: nowrap;
 }
 
 .album-icon-action {
@@ -622,14 +628,64 @@ select:focus {
   background: rgba(37, 211, 102, 0.1);
 }
 
+.missing-review-button {
+  color: var(--green);
+  border-color: rgba(15, 107, 87, 0.32);
+}
+
+.missing-review-button:hover {
+  background: rgba(15, 107, 87, 0.08);
+}
+
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme]) .missing-share-button img {
+  :root:not([data-theme]) .missing-share-button img,
+  :root:not([data-theme]) .missing-review-button img {
     filter: brightness(0) invert(1);
   }
 }
 
-:root[data-theme="dark"] .missing-share-button img {
+:root[data-theme="dark"] .missing-share-button img,
+:root[data-theme="dark"] .missing-review-button img {
   filter: brightness(0) invert(1);
+}
+
+.missing-review-result {
+  grid-template-columns: 1fr;
+}
+
+.missing-review-column {
+  gap: 12px;
+}
+
+.missing-review-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.missing-review-item {
+  min-height: 38px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--field-bg);
+  color: var(--ink);
+  font-size: 0.95rem;
+  font-weight: 850;
+}
+
+.missing-review-item.selected {
+  border-color: var(--green);
+  background: rgba(15, 107, 87, 0.12);
+  color: var(--green-strong);
+  box-shadow: 0 0 0 2px rgba(15, 107, 87, 0.08);
+}
+
+.missing-review-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding-top: 4px;
 }
 
 .delete-icon-button {
