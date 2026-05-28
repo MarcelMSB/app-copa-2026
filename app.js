@@ -1502,7 +1502,7 @@ function renderAlbums() {
     moveDownButton.disabled = index === state.albums.length - 1;
     title.textContent = album.name;
     renderAlbumCover(cover, album);
-    meta.textContent = `${count} obtidas - criado em ${formatDate(album.createdAt)}`;
+    meta.textContent = `${count} obtidas`;
 
     attachAlbumLongPress(openButton);
     openButton.addEventListener("click", () => openAlbum(album.id));
