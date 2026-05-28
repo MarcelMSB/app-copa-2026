@@ -835,6 +835,40 @@ select:focus {
   gap: 4px;
 }
 
+.album-title-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.album-title-line strong {
+  min-width: 0;
+}
+
+.album-edit-button {
+  display: inline-grid !important;
+  place-items: center;
+  width: 24px;
+  min-width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  opacity: 0.58;
+}
+
+.album-edit-button:hover,
+.album-edit-button:focus-visible {
+  background: var(--surface-soft);
+  opacity: 1;
+  outline: none;
+}
+
+.album-edit-button img {
+  width: 14px;
+  height: 14px;
+  display: block;
+}
+
 .album-info strong,
 .album-info span {
   overflow: hidden;

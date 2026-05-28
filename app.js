@@ -1451,6 +1451,22 @@ async function compareSelectedAlbums() {
   els.comparePanel.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
+async function editAlbumName(album) {
+  const nextName = window.prompt("Novo nome do álbum", album.name);
+  if (nextName === null) return;
+
+  const cleanName = nextName.trim();
+  if (!cleanName || cleanName === album.name) return;
+
+  await putItem(ALBUM_STORE, {
+    ...album,
+    name: cleanName,
+    updatedAt: Date.now()
+  });
+  await loadAlbums();
+  savePulse();
+}
+
 function renderAlbums() {
   els.albumList.textContent = "";
   els.emptyAlbums.classList.toggle("hidden", state.albums.length > 0);
@@ -1464,6 +1480,7 @@ function renderAlbums() {
     const reorderControls = node.querySelector(".album-reorder-controls");
     const moveUpButton = node.querySelector(".move-up-button");
     const moveDownButton = node.querySelector(".move-down-button");
+    const editButton = node.querySelector(".album-edit-button");
     const missingShareButton = node.querySelector(".missing-share-button");
     const missingWhatsappButton = node.querySelector(".missing-whatsapp-button");
     const missingReviewButton = node.querySelector(".missing-review-button");
@@ -1471,7 +1488,7 @@ function renderAlbums() {
     const deleteButton = node.querySelector(".delete-button");
     const cover = node.querySelector(".album-cover");
     const title = node.querySelector("strong");
-    const meta = node.querySelector(".album-info span");
+    const meta = node.querySelector(".album-card-meta");
     const index = state.albums.findIndex((item) => item.id === album.id);
     const count = state.allStickers.filter((sticker) => sticker.albumId === album.id && isOwned(sticker)).length;
 
@@ -1492,6 +1509,17 @@ function renderAlbums() {
     compareInput.addEventListener("change", () => toggleCompareSelection(album.id, compareInput.checked));
     moveUpButton.addEventListener("click", () => moveAlbum(album.id, -1));
     moveDownButton.addEventListener("click", () => moveAlbum(album.id, 1));
+    editButton.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      editAlbumName(album);
+    });
+    editButton.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter" && event.key !== " ") return;
+      event.preventDefault();
+      event.stopPropagation();
+      editAlbumName(album);
+    });
     missingShareButton.addEventListener("click", async () => {
       try {
         await shareAlbumMissing(album);

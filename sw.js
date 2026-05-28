@@ -1,4 +1,4 @@
-const CACHE_NAME = "copa-2026-album-v44";
+const CACHE_NAME = "copa-2026-album-v47";
 const FLAG_CODES = [
   "ar",
   "at",
@@ -68,6 +68,7 @@ const APP_SHELL = [
   "./assets/ui/share-2.svg",
   "./assets/ui/whatsapp.svg",
   "./assets/ui/table.svg",
+  "./assets/ui/pencil.svg",
   ...FLAG_CODES.map((code) => `./assets/flags/${code}.svg`)
 ];
 
