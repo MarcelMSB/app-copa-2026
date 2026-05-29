@@ -268,6 +268,7 @@ const els = {
   finishReorderButton: document.querySelector("#finishReorderButton"),
   albumList: document.querySelector("#albumList"),
   emptyAlbums: document.querySelector("#emptyAlbums"),
+  updatePwaButton: document.querySelector("#updatePwaButton"),
   backButton: document.querySelector("#backButton"),
   themeToggleButton: document.querySelector("#themeToggleButton"),
   themeToggleIcon: document.querySelector("#themeToggleIcon"),
@@ -1202,9 +1203,12 @@ function buildDuplicateShareText(duplicates = state.duplicates) {
 }
 
 function buildDuplicateListCheckText(items, duplicateMap) {
+  const listLabel = items.length === 1
+    ? "Tenho 1 repetida da lista. Ela é:"
+    : `Tenho ${items.length} repetidas da lista. São elas:`;
   const lines = [
     "Figurinhas App",
-    "Tenho repetidas da lista",
+    listLabel,
     ""
   ];
 
@@ -1618,7 +1622,37 @@ function renderDuplicateListCheckResult(output, items, duplicateMap) {
     window.prompt("Copie o resultado:", resultText);
   });
 
-  output.append(count, result, copyButton);
+  const actions = document.createElement("div");
+  actions.className = "missing-review-actions";
+  actions.append(copyButton);
+
+  if (items.length) {
+    const checkoutButton = document.createElement("button");
+    checkoutButton.type = "button";
+    checkoutButton.className = "primary-button";
+    checkoutButton.textContent = "Dar saída";
+    checkoutButton.addEventListener("click", async () => {
+      checkoutButton.disabled = true;
+      await checkoutDuplicateItems(items);
+      const updatedDuplicateMap = getDuplicateMap();
+      const remainingItems = items.filter((item) => (updatedDuplicateMap.get(item.id)?.quantity || 0) > 0);
+      renderDuplicateListCheckResult(output, remainingItems, updatedDuplicateMap);
+    });
+    actions.append(checkoutButton);
+  }
+
+  output.append(count, result, actions);
+}
+
+async function checkoutDuplicateItems(items) {
+  const duplicateMap = getDuplicateMap();
+
+  for (const item of items) {
+    const currentQuantity = duplicateMap.get(item.id)?.quantity || 0;
+    if (currentQuantity > 0) {
+      await setDuplicateQuantity(item, currentQuantity - 1);
+    }
+  }
 }
 
 function renderDuplicateListCheckPanel() {
@@ -2805,6 +2839,7 @@ function registerEvents() {
     els.installButton.classList.add("hidden");
   });
 
+  els.updatePwaButton.addEventListener("click", updateInstalledPwa);
   window.setTimeout(showInstallFallback, 1200);
 }
 
@@ -2812,9 +2847,69 @@ async function registerServiceWorker() {
   if (!("serviceWorker" in navigator)) return;
 
   try {
-    await navigator.serviceWorker.register("sw.js");
+    return await navigator.serviceWorker.register("sw.js");
   } catch (error) {
     console.warn("Service worker nao registrado", error);
+    return null;
+  }
+}
+
+function waitForServiceWorkerActivation(worker) {
+  return new Promise((resolve) => {
+    if (!worker || worker.state === "activated") {
+      resolve();
+      return;
+    }
+
+    worker.addEventListener("statechange", () => {
+      if (worker.state === "activated") resolve();
+    });
+  });
+}
+
+async function updateInstalledPwa() {
+  if (!("serviceWorker" in navigator)) {
+    window.alert("Atualização automática não disponível neste navegador.");
+    return;
+  }
+
+  const button = els.updatePwaButton;
+  const originalText = button.textContent;
+  button.disabled = true;
+  button.textContent = "Verificando...";
+
+  try {
+    const registration = await navigator.serviceWorker.getRegistration() || await registerServiceWorker();
+    if (!registration) {
+      window.alert("Não foi possível encontrar o app instalado para atualizar.");
+      return;
+    }
+
+    let reloaded = false;
+    const reloadOnce = () => {
+      if (reloaded) return;
+      reloaded = true;
+      window.location.reload();
+    };
+
+    navigator.serviceWorker.addEventListener("controllerchange", reloadOnce, { once: true });
+
+    const updatedRegistration = await registration.update();
+    const updateWorker = updatedRegistration.installing || updatedRegistration.waiting;
+
+    if (updateWorker) {
+      button.textContent = "Aplicando...";
+      await waitForServiceWorkerActivation(updateWorker);
+      reloadOnce();
+      return;
+    }
+
+    window.alert("O app já está atualizado.");
+  } catch (error) {
+    window.alert("Não foi possível atualizar o app agora.");
+  } finally {
+    button.disabled = false;
+    button.textContent = originalText;
   }
 }
 
