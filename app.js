@@ -1091,6 +1091,10 @@ async function shareCollectionText() {
 
 function shareCollectionOnWhatsApp() {
   const text = buildCollectionShareText();
+  openWhatsAppShare(text);
+}
+
+function openWhatsAppShare(text) {
   const url = `https://wa.me/?text=${encodeURIComponent(text)}`;
   window.open(url, "_blank", "noopener");
 }
@@ -1184,18 +1188,10 @@ function buildDuplicateShareText(duplicates = state.duplicates) {
 }
 
 async function shareDuplicates(useWhatsApp = false) {
-  const whatsappWindow = useWhatsApp ? window.open("about:blank", "_blank") : null;
-  const duplicates = await getAll(DUPLICATE_STORE);
-  const text = buildDuplicateShareText(duplicates);
+  const text = buildDuplicateShareText(state.duplicates);
 
   if (useWhatsApp) {
-    const url = `https://wa.me/?text=${encodeURIComponent(text)}`;
-    if (whatsappWindow) {
-      whatsappWindow.opener = null;
-      whatsappWindow.location.href = url;
-    } else {
-      window.open(url, "_blank", "noopener");
-    }
+    openWhatsAppShare(text);
     return;
   }
 
@@ -1265,18 +1261,11 @@ function renderAlbumCover(cover, album) {
 }
 
 async function shareAlbumMissing(album, useWhatsApp = false) {
-  const whatsappWindow = useWhatsApp ? window.open("about:blank", "_blank") : null;
-  const stickers = await getStickersForAlbum(album.id);
+  const stickers = state.allStickers.filter((sticker) => sticker.albumId === album.id);
   const text = buildMissingShareText(album, stickers);
 
   if (useWhatsApp) {
-    const url = `https://wa.me/?text=${encodeURIComponent(text)}`;
-    if (whatsappWindow) {
-      whatsappWindow.opener = null;
-      whatsappWindow.location.href = url;
-    } else {
-      window.open(url, "_blank", "noopener");
-    }
+    openWhatsAppShare(text);
     return;
   }
 
