@@ -1053,7 +1053,9 @@ async function getDuplicateOcrWorker() {
 
   const worker = await window.Tesseract.createWorker("eng");
   await worker.setParameters({
-    tessedit_char_whitelist: "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 "
+    tessedit_char_whitelist: "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 ",
+    tessedit_pageseg_mode: "6",
+    preserve_interword_spaces: "1"
   });
 
   state.duplicateScanner.worker = worker;
@@ -1068,11 +1070,11 @@ function prepareDuplicateScanFrame() {
 
   if (!width || !height) return null;
 
-  const cropX = Math.round(width * 0.42);
+  const cropX = Math.round(width * 0.12);
   const cropY = 0;
-  const cropWidth = Math.round(width * 0.58);
-  const cropHeight = Math.round(height * 0.45);
-  canvas.width = 720;
+  const cropWidth = Math.round(width * 0.82);
+  const cropHeight = Math.round(height * 0.52);
+  canvas.width = 520;
   canvas.height = Math.round((cropHeight / cropWidth) * canvas.width);
 
   const context = canvas.getContext("2d", { willReadFrequently: true });
@@ -1081,7 +1083,7 @@ function prepareDuplicateScanFrame() {
   const image = context.getImageData(0, 0, canvas.width, canvas.height);
   for (let index = 0; index < image.data.length; index += 4) {
     const gray = Math.round((image.data[index] * 0.299) + (image.data[index + 1] * 0.587) + (image.data[index + 2] * 0.114));
-    const contrast = gray > 145 ? 255 : 0;
+    const contrast = gray > 128 ? 255 : 0;
     image.data[index] = contrast;
     image.data[index + 1] = contrast;
     image.data[index + 2] = contrast;
@@ -1172,7 +1174,7 @@ async function scanDuplicateFrame() {
   } finally {
     state.duplicateScanner.processing = false;
     if (state.duplicateScanner.active) {
-      state.duplicateScanner.timer = window.setTimeout(scanDuplicateFrame, 900);
+      state.duplicateScanner.timer = window.setTimeout(scanDuplicateFrame, 420);
     }
   }
 }
@@ -1193,8 +1195,8 @@ async function startDuplicateCapture() {
     const stream = await navigator.mediaDevices.getUserMedia({
       video: {
         facingMode: { ideal: "environment" },
-        width: { ideal: 1280 },
-        height: { ideal: 720 }
+        width: { ideal: 960 },
+        height: { ideal: 540 }
       },
       audio: false
     });

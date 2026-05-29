@@ -655,10 +655,10 @@ select:focus {
 .duplicate-scanner-view::after {
   content: "";
   position: absolute;
-  top: 8%;
-  right: 7%;
-  width: 42%;
-  height: 28%;
+  top: 6%;
+  left: 12%;
+  width: 76%;
+  height: 44%;
   border: 2px solid rgba(247, 194, 56, 0.9);
   border-radius: 8px;
   box-shadow: 0 0 0 999px rgba(0, 0, 0, 0.12);
