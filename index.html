@@ -216,6 +216,7 @@
 
           <section class="mode-panel duplicates-filter-shell" aria-label="Filtros de repetidas">
             <button class="filter-toggle" id="duplicateFilterToggle" type="button">Filtros</button>
+            <button class="ghost-button neutral-button" id="duplicateCaptureButton" type="button">Capturar Figurinhas</button>
             <button class="ghost-button clear-filter-button hidden" id="duplicateClearFilterButton" type="button">Limpar</button>
             <div class="filter-panel duplicates-filters hidden" id="duplicateFilterPanel">
               <label class="search-field">
@@ -239,6 +240,24 @@
                   <option value="standard">Demais figurinhas</option>
                 </select>
               </label>
+            </div>
+          </section>
+
+          <section class="compare-panel duplicate-scanner-panel hidden" id="duplicateScannerPanel" aria-live="polite">
+            <div class="compare-panel-heading">
+              <div>
+                <p class="panel-kicker">Câmera</p>
+                <h2>Captura de repetidas</h2>
+              </div>
+              <button class="ghost-button neutral-button" id="stopDuplicateCaptureButton" type="button">Parar</button>
+            </div>
+            <div class="duplicate-scanner-view">
+              <video id="duplicateScannerVideo" autoplay muted playsinline></video>
+              <canvas id="duplicateScannerCanvas" class="hidden"></canvas>
+            </div>
+            <div class="duplicate-scanner-status">
+              <strong id="duplicateScannerStatus">Preparando câmera...</strong>
+              <span id="duplicateScannerLast"></span>
             </div>
           </section>
 

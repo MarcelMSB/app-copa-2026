@@ -617,7 +617,8 @@ select:focus {
 }
 
 .duplicates-filter-shell {
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: auto auto auto;
+  justify-content: start;
 }
 
 .duplicates-filters {
@@ -629,6 +630,51 @@ select:focus {
 
 .duplicates-panel {
   padding: 14px;
+}
+
+.duplicate-scanner-panel {
+  gap: 12px;
+}
+
+.duplicate-scanner-view {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #050806;
+  aspect-ratio: 16 / 9;
+}
+
+.duplicate-scanner-view video {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+}
+
+.duplicate-scanner-view::after {
+  content: "";
+  position: absolute;
+  top: 8%;
+  right: 7%;
+  width: 42%;
+  height: 28%;
+  border: 2px solid rgba(247, 194, 56, 0.9);
+  border-radius: 8px;
+  box-shadow: 0 0 0 999px rgba(0, 0, 0, 0.12);
+  pointer-events: none;
+}
+
+.duplicate-scanner-status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  color: var(--muted);
+}
+
+.duplicate-scanner-status strong {
+  color: var(--ink);
 }
 
 .duplicates-result {
