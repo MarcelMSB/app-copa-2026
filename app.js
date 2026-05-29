@@ -307,6 +307,7 @@ const els = {
   duplicateImportPanel: document.querySelector("#duplicateImportPanel"),
   duplicateImportResult: document.querySelector("#duplicateImportResult"),
   closeDuplicateImportButton: document.querySelector("#closeDuplicateImportButton"),
+  duplicatesSummary: document.querySelector("#duplicatesSummary"),
   duplicateSearchInput: document.querySelector("#duplicateSearchInput"),
   duplicateStatusFilter: document.querySelector("#duplicateStatusFilter"),
   duplicateTypeFilter: document.querySelector("#duplicateTypeFilter"),
@@ -2333,6 +2334,10 @@ function renderDuplicatesScreen() {
 
   const duplicateMap = getDuplicateMap();
   const visibleItems = getVisibleDuplicateItems();
+  const individualCount = state.duplicates.filter((item) => (item.quantity || 0) > 0).length;
+  const totalCount = state.duplicates.reduce((sum, item) => sum + (item.quantity || 0), 0);
+  const individualLabel = individualCount === 1 ? "1 individual" : `${individualCount} individuais`;
+  els.duplicatesSummary.textContent = `${individualLabel} - ${totalCount} no total`;
 
   const grouped = groupItemsByTeam(visibleItems);
   grouped.forEach((teamItems, teamCode) => {
