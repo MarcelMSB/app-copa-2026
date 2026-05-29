@@ -2874,6 +2874,9 @@ async function updateInstalledPwa() {
   }
 
   const button = els.updatePwaButton;
+  button.innerHTML = "";
+  button.setAttribute("aria-label", "Atualizar app instalado");
+  button.title = "Atualizar app";
   button.disabled = true;
   button.classList.add("is-checking-update");
 
@@ -2908,6 +2911,9 @@ async function updateInstalledPwa() {
   } finally {
     button.disabled = false;
     button.classList.remove("is-checking-update");
+    button.innerHTML = "";
+    button.setAttribute("aria-label", "Atualizar app instalado");
+    button.title = "Atualizar app";
   }
 }
 

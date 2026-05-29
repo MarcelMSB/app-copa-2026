@@ -151,12 +151,27 @@ button {
   background: rgba(247, 194, 56, 0.18);
 }
 
-.theme-button.is-checking-update span {
+.theme-button.is-checking-update::before {
   animation: spin-update-icon 0.85s linear infinite;
 }
 
 .theme-button:disabled {
   cursor: wait;
+}
+
+#updatePwaButton {
+  overflow: hidden;
+  font-size: 0;
+}
+
+#updatePwaButton::before {
+  content: "↻";
+  font-size: 1.1rem;
+  line-height: 1;
+}
+
+#updatePwaButton > * {
+  display: none;
 }
 
 @keyframes spin-update-icon {
