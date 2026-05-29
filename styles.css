@@ -612,19 +612,23 @@ select:focus {
 
 .album-actions {
   display: grid;
-  grid-template-columns: auto auto auto minmax(92px, 1fr) auto;
-  gap: 10px;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 8px;
   align-items: center;
 }
 
 .export-button {
   display: inline-grid;
   place-items: center;
-  min-width: 92px;
   width: 100%;
   color: var(--green);
   border-color: rgba(15, 107, 87, 0.3);
-  white-space: nowrap;
+}
+
+.album-actions .album-icon-action,
+.album-actions .delete-icon-button {
+  width: 100%;
+  min-height: 42px;
 }
 
 .album-icon-action {
@@ -672,19 +676,31 @@ select:focus {
   border-color: rgba(15, 107, 87, 0.32);
 }
 
-.missing-review-button:hover {
+.missing-review-button:hover,
+.text-check-button:hover,
+.export-button:hover {
   background: rgba(15, 107, 87, 0.08);
+}
+
+.text-check-button,
+.export-button {
+  color: var(--green);
+  border-color: rgba(15, 107, 87, 0.32);
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme]) .missing-share-button img,
-  :root:not([data-theme]) .missing-review-button img {
+  :root:not([data-theme]) .missing-review-button img,
+  :root:not([data-theme]) .text-check-button img,
+  :root:not([data-theme]) .export-button img {
     filter: brightness(0) invert(1);
   }
 }
 
 :root[data-theme="dark"] .missing-share-button img,
-:root[data-theme="dark"] .missing-review-button img {
+:root[data-theme="dark"] .missing-review-button img,
+:root[data-theme="dark"] .text-check-button img,
+:root[data-theme="dark"] .export-button img {
   filter: brightness(0) invert(1);
 }
 
@@ -725,6 +741,49 @@ select:focus {
   flex-wrap: wrap;
   gap: 10px;
   padding-top: 4px;
+}
+
+.text-check-column {
+  gap: 12px;
+}
+
+.text-check-input {
+  width: 100%;
+  min-height: 180px;
+  resize: vertical;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px;
+  background: var(--field-bg);
+  color: var(--ink);
+  font: inherit;
+  font-size: 1rem;
+  line-height: 1.45;
+}
+
+.text-check-input:focus {
+  outline: 2px solid rgba(15, 107, 87, 0.18);
+  border-color: var(--green);
+}
+
+.text-check-output {
+  display: grid;
+  gap: 10px;
+}
+
+.text-check-result-text {
+  margin: 0;
+  max-height: 320px;
+  overflow: auto;
+  white-space: pre-wrap;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px;
+  background: var(--surface-soft);
+  color: var(--ink);
+  font: inherit;
+  font-weight: 750;
+  line-height: 1.45;
 }
 
 .delete-icon-button {

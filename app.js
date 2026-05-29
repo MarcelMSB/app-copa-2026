@@ -227,6 +227,7 @@ const state = {
   compareMode: false,
   compareAlbumIds: new Set(),
   missingReview: {
+    mode: null,
     albumId: null,
     items: [],
     selectedIds: new Set()
@@ -360,6 +361,40 @@ function getStickerTypeLabel(type) {
 function formatStickerLabel(code, number) {
   if (code === "CC") return `CC ${number}`;
   return `${code} ${number}`;
+}
+
+function flagCodeToEmoji(flagCode) {
+  if (!flagCode) return "";
+  if (flagCode === "gb-eng" || flagCode === "gb-sct") return "🏴";
+
+  const normalizedCode = flagCode.toUpperCase();
+  if (!/^[A-Z]{2}$/.test(normalizedCode)) return "";
+
+  return Array.from(normalizedCode)
+    .map((letter) => String.fromCodePoint(127397 + letter.charCodeAt(0)))
+    .join("");
+}
+
+function getShareTeamEmoji(team) {
+  if (!team) return "";
+  const specialIcons = {
+    PANINI: "📘",
+    FWC: "🌎",
+    CC: "🥤",
+    MC: "🍟"
+  };
+
+  return specialIcons[team.code] || flagCodeToEmoji(team.flagCode);
+}
+
+function formatMissingShareNumber(item) {
+  if (item.teamCode === "PANINI" && Number(item.number) === 0) return "00";
+  return String(item.number);
+}
+
+function formatMissingShareTeamCode(teamCode) {
+  if (teamCode === "PANINI") return "PN";
+  return teamCode;
 }
 
 function isOptionalSetEnabled(optionalSet, album = state.activeAlbum) {
@@ -921,34 +956,8 @@ function getShareItems() {
 }
 
 function buildCollectionShareText() {
-  const items = getShareItems();
-  const stickerMap = getStickerMap();
-  const owned = items.filter((item) => isOwned(stickerMap.get(item.id))).length;
-  const missing = items.length - owned;
-  const lines = [
-    `Resumo: ${owned} ja obtidas`,
-    `${missing} faltando`,
-    ""
-  ];
-
-  if (!items.length) {
-    lines.push("Nenhuma figurinha encontrada com os filtros aplicados.");
-    return lines.join("\n");
-  }
-
-  const grouped = groupItemsByTeam(items);
-  grouped.forEach((teamItems, teamCode) => {
-    const team = TEAM_BY_CODE.get(teamCode);
-    lines.push(`${team?.groupName || "Outras"} - ${team?.name || teamCode} (${teamCode})`);
-    teamItems.forEach((item) => {
-      const sticker = stickerMap.get(item.id);
-      const note = sticker?.notes ? ` - obs: ${sticker.notes}` : "";
-      lines.push(`- ${item.label}: ${getStatusLabel(item, stickerMap)}${note}`);
-    });
-    lines.push("");
-  });
-
-  return lines.join("\n").trim();
+  if (!state.activeAlbum) return "Figurinhas App";
+  return buildMissingShareText(state.activeAlbum, state.stickers);
 }
 
 async function shareText(text, title = "Album Copa 2026") {
@@ -1007,8 +1016,8 @@ function appendItemsByTeamLines(lines, items) {
 function buildMissingShareText(album, stickers) {
   const missingItems = getMissingItemsForAlbum(album, stickers);
   const lines = [
-    `Figurinhas faltantes - ${album.name}`,
-    `${missingItems.length} faltando`,
+    `Figurinhas App - ${album.name}`,
+    "Faltantes",
     ""
   ];
 
@@ -1017,7 +1026,34 @@ function buildMissingShareText(album, stickers) {
     return lines.join("\n");
   }
 
-  appendItemsByTeamLines(lines, missingItems);
+  appendCompactItemLines(lines, missingItems);
+  return lines.join("\n").trim();
+}
+
+function appendCompactItemLines(lines, items) {
+  const grouped = groupItemsByTeam(items);
+  grouped.forEach((teamItems, teamCode) => {
+    const team = TEAM_BY_CODE.get(teamCode);
+    const emoji = getShareTeamEmoji(team);
+    const emojiSuffix = emoji ? ` ${emoji}` : "";
+    const numbers = teamItems.map(formatMissingShareNumber).join(", ");
+    lines.push(`${formatMissingShareTeamCode(teamCode)}${emojiSuffix}: ${numbers}`);
+  });
+}
+
+function buildNeededFromTextShareText(album, items) {
+  const lines = [
+    `Figurinhas App - ${album.name}`,
+    "Preciso",
+    ""
+  ];
+
+  if (!items.length) {
+    lines.push("Nenhuma figurinha dessa lista está faltando.");
+    return lines.join("\n");
+  }
+
+  appendCompactItemLines(lines, items);
   return lines.join("\n").trim();
 }
 
@@ -1087,6 +1123,7 @@ async function shareAlbumMissing(album, useWhatsApp = false) {
 }
 
 function resetMissingReview() {
+  state.missingReview.mode = null;
   state.missingReview.albumId = null;
   state.missingReview.items = [];
   state.missingReview.selectedIds = new Set();
@@ -1155,6 +1192,156 @@ function createMissingReviewGroup(teamItems, teamCode) {
   return group;
 }
 
+function normalizePastedTeamCode(code) {
+  const normalizedCode = code.toUpperCase();
+  if (normalizedCode === "PN" || normalizedCode === "PANINI") return "PANINI";
+  return normalizedCode;
+}
+
+function normalizePastedStickerToken(token) {
+  const cleanToken = token.toUpperCase().replace(/\s+/g, "");
+  if (/^\d+$/.test(cleanToken)) return String(Number(cleanToken));
+  return cleanToken;
+}
+
+function extractTeamCodeFromPastedLine(line, album) {
+  const availableCodes = new Set(getTeams(album).map((team) => team.code));
+  const codeRegex = /[A-Z]{2,7}/gi;
+  let match = codeRegex.exec(line);
+
+  while (match) {
+    const teamCode = normalizePastedTeamCode(match[0]);
+    if (availableCodes.has(teamCode)) {
+      const colonIndex = line.indexOf(":");
+      return {
+        teamCode,
+        valueStart: colonIndex >= 0 ? colonIndex + 1 : match.index + match[0].length
+      };
+    }
+    match = codeRegex.exec(line);
+  }
+
+  return null;
+}
+
+function getPastedStickerTokens(valueText, teamCode) {
+  const matches = valueText.toUpperCase().match(/[A-Z]{2,3}\s*0?\d{1,2}|0?\d{1,2}|[A-Z]{2,3}/g) || [];
+
+  return matches
+    .map((token) => {
+      const compactToken = token.replace(/\s+/g, "");
+      const numberMatch = compactToken.match(/\d+/);
+      if (numberMatch && teamCode !== "MC") return numberMatch[0];
+      return compactToken;
+    })
+    .map(normalizePastedStickerToken)
+    .filter((token) => token && token !== teamCode && token !== "PN");
+}
+
+function parsePastedStickerList(text, album) {
+  const parsedItemIds = new Set();
+
+  text.split(/\r?\n/).forEach((line) => {
+    const teamMatch = extractTeamCodeFromPastedLine(line, album);
+    if (!teamMatch) return;
+
+    const items = getItemsByTeam(teamMatch.teamCode, album);
+    const itemByNumber = new Map(items.map((item) => [normalizePastedStickerToken(String(item.number)), item]));
+    const valueText = line.slice(teamMatch.valueStart);
+    const tokens = getPastedStickerTokens(valueText, teamMatch.teamCode);
+
+    tokens.forEach((token) => {
+      const item = itemByNumber.get(token);
+      if (item) parsedItemIds.add(item.id);
+    });
+  });
+
+  return parsedItemIds;
+}
+
+function renderTextCheckResult(output, album, items) {
+  output.textContent = "";
+
+  const resultText = buildNeededFromTextShareText(album, items);
+  const count = document.createElement("p");
+  count.className = "compare-count";
+  count.textContent = items.length
+    ? `${items.length} figurinhas dessa lista faltam neste álbum.`
+    : "Nenhuma figurinha dessa lista falta neste álbum.";
+
+  const result = document.createElement("pre");
+  result.className = "text-check-result-text";
+  result.textContent = resultText;
+
+  const copyButton = document.createElement("button");
+  copyButton.type = "button";
+  copyButton.className = "ghost-button neutral-button";
+  copyButton.textContent = "Copiar resultado";
+  copyButton.addEventListener("click", async () => {
+    if (navigator.clipboard) {
+      await navigator.clipboard.writeText(resultText);
+      savePulse();
+      return;
+    }
+
+    window.prompt("Copie o resultado:", resultText);
+  });
+
+  output.append(count, result, copyButton);
+}
+
+function renderTextCheckPanel(album) {
+  els.missingReviewTitle.textContent = `Conferir lista - ${album.name}`;
+  els.missingReviewResult.textContent = "";
+
+  const section = document.createElement("section");
+  section.className = "compare-column missing-review-column text-check-column";
+
+  const heading = document.createElement("h3");
+  heading.textContent = "Cole a lista recebida";
+  section.append(heading);
+
+  const help = document.createElement("p");
+  help.className = "compare-count";
+  help.textContent = "Vamos retornar somente as figurinhas dessa lista que ainda faltam neste álbum.";
+  section.append(help);
+
+  const textarea = document.createElement("textarea");
+  textarea.className = "text-check-input";
+  textarea.rows = 10;
+  textarea.placeholder = "MEX: 2, 5, 6\nBRA 🇧🇷: 1, 15\nCC 🥤: 8, 9";
+  section.append(textarea);
+
+  const actions = document.createElement("div");
+  actions.className = "missing-review-actions";
+
+  const checkButton = document.createElement("button");
+  checkButton.type = "button";
+  checkButton.className = "primary-button";
+  checkButton.textContent = "Verificar lista";
+
+  const cancelButton = document.createElement("button");
+  cancelButton.type = "button";
+  cancelButton.className = "ghost-button neutral-button";
+  cancelButton.textContent = "Cancelar";
+  cancelButton.addEventListener("click", discardMissingReview);
+
+  actions.append(checkButton, cancelButton);
+  section.append(actions);
+
+  const output = document.createElement("div");
+  output.className = "text-check-output";
+  section.append(output);
+
+  checkButton.addEventListener("click", () => {
+    const parsedItemIds = parsePastedStickerList(textarea.value, album);
+    const neededItems = state.missingReview.items.filter((item) => parsedItemIds.has(item.id));
+    renderTextCheckResult(output, album, neededItems);
+  });
+
+  els.missingReviewResult.append(section);
+}
+
 function renderMissingReviewList(album) {
   const items = state.missingReview.items;
   els.missingReviewTitle.textContent = `Faltantes - ${album.name}`;
@@ -1192,12 +1379,26 @@ function renderMissingReviewList(album) {
 async function openMissingReview(album) {
   const stickers = await getStickersForAlbum(album.id);
   resetMissingReview();
+  state.missingReview.mode = "manual";
   state.missingReview.albumId = album.id;
   state.missingReview.items = getMissingItemsForAlbum(album, stickers);
 
   renderMissingReviewList(album);
   els.missingReviewPanel.classList.remove("hidden");
   els.missingReviewPanel.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+async function openTextCheck(album) {
+  const stickers = await getStickersForAlbum(album.id);
+  resetMissingReview();
+  state.missingReview.mode = "text";
+  state.missingReview.albumId = album.id;
+  state.missingReview.items = getMissingItemsForAlbum(album, stickers);
+
+  renderTextCheckPanel(album);
+  els.missingReviewPanel.classList.remove("hidden");
+  els.missingReviewPanel.scrollIntoView({ behavior: "smooth", block: "start" });
+  els.missingReviewResult.querySelector(".text-check-input")?.focus({ preventScroll: true });
 }
 
 function discardMissingReview() {
@@ -1282,6 +1483,11 @@ async function updateAlbumFromMissingReview() {
 }
 
 function handleMissingReviewClose() {
+  if (state.missingReview.mode === "text") {
+    discardMissingReview();
+    return;
+  }
+
   renderMissingReviewConfirmation();
 }
 
@@ -1484,6 +1690,7 @@ function renderAlbums() {
     const missingShareButton = node.querySelector(".missing-share-button");
     const missingWhatsappButton = node.querySelector(".missing-whatsapp-button");
     const missingReviewButton = node.querySelector(".missing-review-button");
+    const textCheckButton = node.querySelector(".text-check-button");
     const exportButton = node.querySelector(".export-button");
     const deleteButton = node.querySelector(".delete-button");
     const cover = node.querySelector(".album-cover");
@@ -1531,6 +1738,7 @@ function renderAlbums() {
     });
     missingWhatsappButton.addEventListener("click", () => shareAlbumMissing(album, true));
     missingReviewButton.addEventListener("click", () => openMissingReview(album));
+    textCheckButton.addEventListener("click", () => openTextCheck(album));
     exportButton.addEventListener("click", () => exportAlbum(album));
     deleteButton.addEventListener("click", async () => {
       const confirmed = window.confirm(`Excluir "${album.name}" e todas as figurinhas cadastradas nele?`);
