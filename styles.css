@@ -640,6 +640,10 @@ select:focus {
   grid-template-columns: 1fr;
 }
 
+.duplicate-import-result {
+  grid-template-columns: 1fr;
+}
+
 .duplicate-team {
   gap: 10px;
   padding: 12px;

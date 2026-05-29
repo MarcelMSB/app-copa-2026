@@ -302,6 +302,10 @@ const els = {
   duplicateListCheckPanel: document.querySelector("#duplicateListCheckPanel"),
   duplicateListCheckResult: document.querySelector("#duplicateListCheckResult"),
   closeDuplicateListCheckButton: document.querySelector("#closeDuplicateListCheckButton"),
+  duplicateImportButton: document.querySelector("#duplicateImportButton"),
+  duplicateImportPanel: document.querySelector("#duplicateImportPanel"),
+  duplicateImportResult: document.querySelector("#duplicateImportResult"),
+  closeDuplicateImportButton: document.querySelector("#closeDuplicateImportButton"),
   duplicateSearchInput: document.querySelector("#duplicateSearchInput"),
   duplicateStatusFilter: document.querySelector("#duplicateStatusFilter"),
   duplicateTypeFilter: document.querySelector("#duplicateTypeFilter"),
@@ -605,6 +609,10 @@ async function putItem(storeName, value) {
 
 async function deleteItem(storeName, id) {
   return requestToPromise(transaction(storeName, "readwrite").delete(id));
+}
+
+async function clearStore(storeName) {
+  return requestToPromise(transaction(storeName, "readwrite").clear());
 }
 
 async function deleteAlbumWithStickers(albumId) {
@@ -1162,13 +1170,15 @@ function formatDuplicateShareNumber(item, duplicateMap) {
   return quantity > 1 ? `${number} (${quantity}x)` : number;
 }
 
-function appendDuplicateItemLines(lines, items, duplicateMap) {
+function appendDuplicateItemLines(lines, items, duplicateMap, options = {}) {
   const grouped = groupItemsByTeam(items);
   grouped.forEach((teamItems, teamCode) => {
     const team = TEAM_BY_CODE.get(teamCode);
     const emoji = getShareTeamEmoji(team);
     const emojiSuffix = emoji ? ` ${emoji}` : "";
-    const numbers = teamItems.map((item) => formatDuplicateShareNumber(item, duplicateMap)).join(", ");
+    const numbers = teamItems
+      .map((item) => options.hideQuantity ? formatMissingShareNumber(item) : formatDuplicateShareNumber(item, duplicateMap))
+      .join(", ");
     lines.push(`${formatMissingShareTeamCode(teamCode)}${emojiSuffix}: ${numbers}`);
   });
 }
@@ -1203,7 +1213,7 @@ function buildDuplicateListCheckText(items, duplicateMap) {
     return lines.join("\n");
   }
 
-  appendDuplicateItemLines(lines, items, duplicateMap);
+  appendDuplicateItemLines(lines, items, duplicateMap, { hideQuantity: true });
   return lines.join("\n").trim();
 }
 
@@ -1470,6 +1480,33 @@ function parseDuplicatePastedStickerList(text) {
   return parsedItemIds;
 }
 
+function parseDuplicateImportList(text) {
+  const records = new Map();
+
+  text.split(/\r?\n/).forEach((line) => {
+    const teamMatch = extractDuplicateTeamCodeFromPastedLine(line);
+    if (!teamMatch) return;
+
+    const items = ITEMS_BY_TEAM.get(teamMatch.teamCode) || [];
+    const itemByNumber = new Map(items.map((item) => [normalizePastedStickerToken(String(item.number)), item]));
+    const valueText = line.slice(teamMatch.valueStart);
+
+    valueText.split(",").forEach((part) => {
+      const quantityMatch = part.match(/\((\d+)\s*x\)/i);
+      const quantity = quantityMatch ? Math.max(1, Number(quantityMatch[1]) || 1) : 1;
+      const cleanPart = part.replace(/\([^)]*\)/g, "");
+      const tokens = getPastedStickerTokens(cleanPart, teamMatch.teamCode);
+
+      tokens.forEach((token) => {
+        const item = itemByNumber.get(token);
+        if (item) records.set(item.id, { item, quantity });
+      });
+    });
+  });
+
+  return Array.from(records.values());
+}
+
 function renderTextCheckResult(output, album, items) {
   output.textContent = "";
 
@@ -1643,6 +1680,91 @@ function openDuplicateListCheck() {
 function closeDuplicateListCheck() {
   els.duplicateListCheckPanel.classList.add("hidden");
   els.duplicateListCheckResult.textContent = "";
+}
+
+function renderDuplicateImportStatus(output, message) {
+  output.textContent = "";
+  const status = document.createElement("p");
+  status.className = "compare-count";
+  status.textContent = message;
+  output.append(status);
+}
+
+async function importDuplicateRecords(records) {
+  await clearStore(DUPLICATE_STORE);
+
+  for (const record of records) {
+    await putItem(DUPLICATE_STORE, createDuplicateRecord(record.item, record.quantity));
+  }
+
+  await loadDuplicates();
+  savePulse();
+}
+
+function renderDuplicateImportPanel() {
+  els.duplicateImportResult.textContent = "";
+
+  const section = document.createElement("section");
+  section.className = "compare-column text-check-column";
+
+  const heading = document.createElement("h3");
+  heading.textContent = "Cole a lista de repetidas";
+  section.append(heading);
+
+  const textarea = document.createElement("textarea");
+  textarea.className = "text-check-input";
+  textarea.rows = 12;
+  textarea.placeholder = "Figurinhas App\nRepetidas\n\nFWC 🌎: 9 (2x), 12\nBRA 🇧🇷: 2 (2x), 15 (6x)";
+  section.append(textarea);
+
+  const actions = document.createElement("div");
+  actions.className = "missing-review-actions";
+
+  const importButton = document.createElement("button");
+  importButton.type = "button";
+  importButton.className = "primary-button";
+  importButton.textContent = "Importar repetidas";
+
+  const cancelButton = document.createElement("button");
+  cancelButton.type = "button";
+  cancelButton.className = "ghost-button neutral-button";
+  cancelButton.textContent = "Cancelar";
+  cancelButton.addEventListener("click", closeDuplicateImport);
+
+  actions.append(importButton, cancelButton);
+  section.append(actions);
+
+  const output = document.createElement("div");
+  output.className = "text-check-output";
+  section.append(output);
+
+  importButton.addEventListener("click", async () => {
+    const records = parseDuplicateImportList(textarea.value);
+    if (!records.length) {
+      renderDuplicateImportStatus(output, "Nenhuma figurinha valida encontrada na lista.");
+      return;
+    }
+
+    importButton.disabled = true;
+    renderDuplicateImportStatus(output, "Importando repetidas...");
+    await importDuplicateRecords(records);
+    renderDuplicateImportStatus(output, `${records.length} figurinhas repetidas importadas.`);
+    importButton.disabled = false;
+  });
+
+  els.duplicateImportResult.append(section);
+}
+
+function openDuplicateImport() {
+  renderDuplicateImportPanel();
+  els.duplicateImportPanel.classList.remove("hidden");
+  els.duplicateImportPanel.scrollIntoView({ behavior: "smooth", block: "start" });
+  els.duplicateImportResult.querySelector(".text-check-input")?.focus({ preventScroll: true });
+}
+
+function closeDuplicateImport() {
+  els.duplicateImportPanel.classList.add("hidden");
+  els.duplicateImportResult.textContent = "";
 }
 
 function renderMissingReviewList(album) {
@@ -2098,6 +2220,7 @@ async function openDuplicatesScreen() {
 function closeDuplicatesScreen() {
   state.duplicatesActive = false;
   closeDuplicateListCheck();
+  closeDuplicateImport();
   els.duplicatesScreen.classList.add("hidden");
   els.albumsScreen.classList.remove("hidden");
   els.backButton.classList.add("hidden");
@@ -2651,6 +2774,8 @@ function registerEvents() {
   });
   els.duplicateListCheckButton.addEventListener("click", openDuplicateListCheck);
   els.closeDuplicateListCheckButton.addEventListener("click", closeDuplicateListCheck);
+  els.duplicateImportButton.addEventListener("click", openDuplicateImport);
+  els.closeDuplicateImportButton.addEventListener("click", closeDuplicateImport);
 
   [els.duplicateSearchInput, els.duplicateStatusFilter, els.duplicateTypeFilter].forEach((el) => {
     el.addEventListener("input", renderDuplicatesScreen);

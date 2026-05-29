@@ -217,6 +217,7 @@
           <section class="mode-panel duplicates-filter-shell" aria-label="Filtros de repetidas">
             <button class="filter-toggle" id="duplicateFilterToggle" type="button">Filtros</button>
             <button class="ghost-button neutral-button" id="duplicateListCheckButton" type="button">Conferir Lista</button>
+            <button class="ghost-button neutral-button" id="duplicateImportButton" type="button">Importar</button>
             <button class="ghost-button clear-filter-button hidden" id="duplicateClearFilterButton" type="button">Limpar</button>
             <div class="filter-panel duplicates-filters hidden" id="duplicateFilterPanel">
               <label class="search-field">
@@ -241,6 +242,17 @@
                 </select>
               </label>
             </div>
+          </section>
+
+          <section class="compare-panel duplicate-import-panel hidden" id="duplicateImportPanel" aria-live="polite">
+            <div class="compare-panel-heading">
+              <div>
+                <p class="panel-kicker">Importação</p>
+                <h2>Importar repetidas</h2>
+              </div>
+              <button class="ghost-button neutral-button" id="closeDuplicateImportButton" type="button">Fechar</button>
+            </div>
+            <div class="compare-result duplicate-import-result" id="duplicateImportResult"></div>
           </section>
 
           <section class="compare-panel duplicate-list-check-panel hidden" id="duplicateListCheckPanel" aria-live="polite">
