@@ -298,6 +298,10 @@ const els = {
   emptyCollection: document.querySelector("#emptyCollection"),
   duplicateFilterToggle: document.querySelector("#duplicateFilterToggle"),
   duplicateFilterPanel: document.querySelector("#duplicateFilterPanel"),
+  duplicateListCheckButton: document.querySelector("#duplicateListCheckButton"),
+  duplicateListCheckPanel: document.querySelector("#duplicateListCheckPanel"),
+  duplicateListCheckResult: document.querySelector("#duplicateListCheckResult"),
+  closeDuplicateListCheckButton: document.querySelector("#closeDuplicateListCheckButton"),
   duplicateSearchInput: document.querySelector("#duplicateSearchInput"),
   duplicateStatusFilter: document.querySelector("#duplicateStatusFilter"),
   duplicateTypeFilter: document.querySelector("#duplicateTypeFilter"),
@@ -1187,6 +1191,22 @@ function buildDuplicateShareText(duplicates = state.duplicates) {
   return lines.join("\n").trim();
 }
 
+function buildDuplicateListCheckText(items, duplicateMap) {
+  const lines = [
+    "Figurinhas App",
+    "Tenho repetidas da lista",
+    ""
+  ];
+
+  if (!items.length) {
+    lines.push("Nenhuma figurinha da lista está nas repetidas.");
+    return lines.join("\n");
+  }
+
+  appendDuplicateItemLines(lines, items, duplicateMap);
+  return lines.join("\n").trim();
+}
+
 async function shareDuplicates(useWhatsApp = false) {
   const text = buildDuplicateShareText(state.duplicates);
 
@@ -1374,6 +1394,26 @@ function extractTeamCodeFromPastedLine(line, album) {
   return null;
 }
 
+function extractDuplicateTeamCodeFromPastedLine(line) {
+  const availableCodes = new Set(TEAMS.map((team) => team.code));
+  const codeRegex = /[A-Z]{2,7}/gi;
+  let match = codeRegex.exec(line);
+
+  while (match) {
+    const teamCode = normalizePastedTeamCode(match[0]);
+    if (availableCodes.has(teamCode)) {
+      const colonIndex = line.indexOf(":");
+      return {
+        teamCode,
+        valueStart: colonIndex >= 0 ? colonIndex + 1 : match.index + match[0].length
+      };
+    }
+    match = codeRegex.exec(line);
+  }
+
+  return null;
+}
+
 function getPastedStickerTokens(valueText, teamCode) {
   const matches = valueText.toUpperCase().match(/[A-Z]{2,3}\s*0?\d{1,2}|0?\d{1,2}|[A-Z]{2,3}/g) || [];
 
@@ -1396,6 +1436,27 @@ function parsePastedStickerList(text, album) {
     if (!teamMatch) return;
 
     const items = getItemsByTeam(teamMatch.teamCode, album);
+    const itemByNumber = new Map(items.map((item) => [normalizePastedStickerToken(String(item.number)), item]));
+    const valueText = line.slice(teamMatch.valueStart);
+    const tokens = getPastedStickerTokens(valueText, teamMatch.teamCode);
+
+    tokens.forEach((token) => {
+      const item = itemByNumber.get(token);
+      if (item) parsedItemIds.add(item.id);
+    });
+  });
+
+  return parsedItemIds;
+}
+
+function parseDuplicatePastedStickerList(text) {
+  const parsedItemIds = new Set();
+
+  text.split(/\r?\n/).forEach((line) => {
+    const teamMatch = extractDuplicateTeamCodeFromPastedLine(line);
+    if (!teamMatch) return;
+
+    const items = ITEMS_BY_TEAM.get(teamMatch.teamCode) || [];
     const itemByNumber = new Map(items.map((item) => [normalizePastedStickerToken(String(item.number)), item]));
     const valueText = line.slice(teamMatch.valueStart);
     const tokens = getPastedStickerTokens(valueText, teamMatch.teamCode);
@@ -1490,6 +1551,98 @@ function renderTextCheckPanel(album) {
   });
 
   els.missingReviewResult.append(section);
+}
+
+function renderDuplicateListCheckResult(output, items, duplicateMap) {
+  output.textContent = "";
+
+  const resultText = buildDuplicateListCheckText(items, duplicateMap);
+  const count = document.createElement("p");
+  count.className = "compare-count";
+  count.textContent = items.length
+    ? `${items.length} figurinhas da lista estão nas repetidas.`
+    : "Nenhuma figurinha da lista está nas repetidas.";
+
+  const result = document.createElement("pre");
+  result.className = "text-check-result-text";
+  result.textContent = resultText;
+
+  const copyButton = document.createElement("button");
+  copyButton.type = "button";
+  copyButton.className = "ghost-button neutral-button";
+  copyButton.textContent = "Copiar resultado";
+  copyButton.addEventListener("click", async () => {
+    if (navigator.clipboard) {
+      await navigator.clipboard.writeText(resultText);
+      savePulse();
+      return;
+    }
+
+    window.prompt("Copie o resultado:", resultText);
+  });
+
+  output.append(count, result, copyButton);
+}
+
+function renderDuplicateListCheckPanel() {
+  els.duplicateListCheckResult.textContent = "";
+
+  const section = document.createElement("section");
+  section.className = "compare-column text-check-column";
+
+  const heading = document.createElement("h3");
+  heading.textContent = "Cole a lista que você precisa";
+  section.append(heading);
+
+  const textarea = document.createElement("textarea");
+  textarea.className = "text-check-input";
+  textarea.rows = 10;
+  textarea.placeholder = "MEX: 2, 5, 6\nBRA 🇧🇷: 1, 15\nCC 🥤: 8, 9";
+  section.append(textarea);
+
+  const actions = document.createElement("div");
+  actions.className = "missing-review-actions";
+
+  const checkButton = document.createElement("button");
+  checkButton.type = "button";
+  checkButton.className = "primary-button";
+  checkButton.textContent = "Verificar repetidas";
+
+  const cancelButton = document.createElement("button");
+  cancelButton.type = "button";
+  cancelButton.className = "ghost-button neutral-button";
+  cancelButton.textContent = "Cancelar";
+  cancelButton.addEventListener("click", closeDuplicateListCheck);
+
+  actions.append(checkButton, cancelButton);
+  section.append(actions);
+
+  const output = document.createElement("div");
+  output.className = "text-check-output";
+  section.append(output);
+
+  checkButton.addEventListener("click", () => {
+    const parsedItemIds = parseDuplicatePastedStickerList(textarea.value);
+    const duplicateMap = getDuplicateMap();
+    const matchingItems = getDuplicateItems().filter((item) => {
+      return parsedItemIds.has(item.id) && (duplicateMap.get(item.id)?.quantity || 0) > 0;
+    });
+    renderDuplicateListCheckResult(output, matchingItems, duplicateMap);
+  });
+
+  els.duplicateListCheckResult.append(section);
+}
+
+function openDuplicateListCheck() {
+  renderDuplicateListCheckPanel();
+  els.duplicateListCheckPanel.classList.remove("hidden");
+  els.duplicateListCheckPanel.scrollIntoView({ behavior: "smooth", block: "start" });
+  els.duplicateListCheckResult.querySelector(".text-check-input")?.focus({ preventScroll: true });
+}
+
+function closeDuplicateListCheck() {
+  els.duplicateListCheckPanel.classList.add("hidden");
+  els.duplicateListCheckResult.textContent = "";
 }
 
 function renderMissingReviewList(album) {
@@ -1944,6 +2097,7 @@ async function openDuplicatesScreen() {
 
 function closeDuplicatesScreen() {
   state.duplicatesActive = false;
+  closeDuplicateListCheck();
   els.duplicatesScreen.classList.add("hidden");
   els.albumsScreen.classList.remove("hidden");
   els.backButton.classList.add("hidden");
@@ -2495,6 +2649,8 @@ function registerEvents() {
   els.duplicateFilterToggle.addEventListener("click", () => {
     els.duplicateFilterPanel.classList.toggle("hidden");
   });
+  els.duplicateListCheckButton.addEventListener("click", openDuplicateListCheck);
+  els.closeDuplicateListCheckButton.addEventListener("click", closeDuplicateListCheck);
 
   [els.duplicateSearchInput, els.duplicateStatusFilter, els.duplicateTypeFilter].forEach((el) => {
     el.addEventListener("input", renderDuplicatesScreen);
