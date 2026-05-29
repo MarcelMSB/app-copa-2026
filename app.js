@@ -5,7 +5,6 @@ const STICKER_STORE = "stickers";
 const DUPLICATE_STORE = "duplicates";
 const VIEW_MODE_STORAGE_KEY = "copa-2026-view-mode";
 const THEME_STORAGE_KEY = "copa-2026-theme";
-const TESSERACT_SCRIPT_URL = "https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js";
 const DEFAULT_VIEW_MODE = "group";
 const STICKER_TYPE_LABELS = {
   standard: "Figurinha comum",
@@ -224,15 +223,6 @@ const state = {
   duplicates: [],
   activeAlbum: null,
   duplicatesActive: false,
-  duplicateScanner: {
-    active: false,
-    stream: null,
-    worker: null,
-    timer: null,
-    processing: false,
-    lastItemId: null,
-    lastCapturedAt: 0
-  },
   viewMode: getSavedViewMode(),
   selectedGroupId: null,
   selectedTeamCode: null,
@@ -308,17 +298,10 @@ const els = {
   emptyCollection: document.querySelector("#emptyCollection"),
   duplicateFilterToggle: document.querySelector("#duplicateFilterToggle"),
   duplicateFilterPanel: document.querySelector("#duplicateFilterPanel"),
-  duplicateCaptureButton: document.querySelector("#duplicateCaptureButton"),
   duplicateSearchInput: document.querySelector("#duplicateSearchInput"),
   duplicateStatusFilter: document.querySelector("#duplicateStatusFilter"),
   duplicateTypeFilter: document.querySelector("#duplicateTypeFilter"),
   duplicateClearFilterButton: document.querySelector("#duplicateClearFilterButton"),
-  duplicateScannerPanel: document.querySelector("#duplicateScannerPanel"),
-  duplicateScannerVideo: document.querySelector("#duplicateScannerVideo"),
-  duplicateScannerCanvas: document.querySelector("#duplicateScannerCanvas"),
-  duplicateScannerStatus: document.querySelector("#duplicateScannerStatus"),
-  duplicateScannerLast: document.querySelector("#duplicateScannerLast"),
-  stopDuplicateCaptureButton: document.querySelector("#stopDuplicateCaptureButton"),
   duplicatesResult: document.querySelector("#duplicatesResult"),
   emptyDuplicates: document.querySelector("#emptyDuplicates"),
   albumCardTemplate: document.querySelector("#albumCardTemplate")
@@ -1017,222 +1000,6 @@ async function setDuplicateQuantity(item, quantity) {
 
   await loadDuplicates();
   savePulse();
-}
-
-function setDuplicateScannerStatus(message, lastMessage = "") {
-  els.duplicateScannerStatus.textContent = message;
-  els.duplicateScannerLast.textContent = lastMessage;
-}
-
-function loadTesseractScript() {
-  if (window.Tesseract) return Promise.resolve();
-
-  return new Promise((resolve, reject) => {
-    const existing = document.querySelector('script[data-tesseract="true"]');
-    if (existing) {
-      existing.addEventListener("load", resolve, { once: true });
-      existing.addEventListener("error", reject, { once: true });
-      return;
-    }
-
-    const script = document.createElement("script");
-    script.src = TESSERACT_SCRIPT_URL;
-    script.async = true;
-    script.dataset.tesseract = "true";
-    script.onload = resolve;
-    script.onerror = () => reject(new Error("Nao foi possivel carregar o OCR."));
-    document.head.append(script);
-  });
-}
-
-async function getDuplicateOcrWorker() {
-  if (state.duplicateScanner.worker) return state.duplicateScanner.worker;
-
-  setDuplicateScannerStatus("Carregando OCR...");
-  await loadTesseractScript();
-
-  const worker = await window.Tesseract.createWorker("eng");
-  await worker.setParameters({
-    tessedit_char_whitelist: "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 ",
-    tessedit_pageseg_mode: "6",
-    preserve_interword_spaces: "1"
-  });
-
-  state.duplicateScanner.worker = worker;
-  return worker;
-}
-
-function prepareDuplicateScanFrame() {
-  const video = els.duplicateScannerVideo;
-  const canvas = els.duplicateScannerCanvas;
-  const width = video.videoWidth;
-  const height = video.videoHeight;
-
-  if (!width || !height) return null;
-
-  const cropX = Math.round(width * 0.12);
-  const cropY = 0;
-  const cropWidth = Math.round(width * 0.82);
-  const cropHeight = Math.round(height * 0.52);
-  canvas.width = 520;
-  canvas.height = Math.round((cropHeight / cropWidth) * canvas.width);
-
-  const context = canvas.getContext("2d", { willReadFrequently: true });
-  context.drawImage(video, cropX, cropY, cropWidth, cropHeight, 0, 0, canvas.width, canvas.height);
-
-  const image = context.getImageData(0, 0, canvas.width, canvas.height);
-  for (let index = 0; index < image.data.length; index += 4) {
-    const gray = Math.round((image.data[index] * 0.299) + (image.data[index + 1] * 0.587) + (image.data[index + 2] * 0.114));
-    const contrast = gray > 128 ? 255 : 0;
-    image.data[index] = contrast;
-    image.data[index + 1] = contrast;
-    image.data[index + 2] = contrast;
-  }
-  context.putImageData(image, 0, 0);
-
-  return canvas;
-}
-
-function normalizeScannedTeamCode(teamCode) {
-  const aliases = {
-    IRO: "IRQ",
-    IR0: "IRQ"
-  };
-  const letterizedCode = teamCode
-    .toUpperCase()
-    .replace(/0/g, "O")
-    .replace(/1/g, "I")
-    .replace(/2/g, "Z")
-    .replace(/5/g, "S")
-    .replace(/8/g, "B");
-
-  return normalizePastedTeamCode(aliases[letterizedCode] || letterizedCode);
-}
-
-function findDuplicateItemByScan(teamCode, number) {
-  const normalizedTeamCode = normalizeScannedTeamCode(teamCode);
-  const normalizedNumber = normalizePastedStickerToken(number);
-
-  return getDuplicateItems().find((item) => {
-    return item.teamCode === normalizedTeamCode &&
-      normalizePastedStickerToken(String(item.number)) === normalizedNumber;
-  });
-}
-
-function parseDuplicateScanText(text) {
-  const normalizedText = text
-    .toUpperCase()
-    .replace(/[^A-Z0-9\s]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-  const matches = normalizedText.matchAll(/\b([A-Z0-9]{2,7})\s*(00|0?[1-9]|1[0-9]|20)\b/g);
-
-  for (const match of matches) {
-    const item = findDuplicateItemByScan(match[1], match[2]);
-    if (item) return item;
-  }
-
-  return null;
-}
-
-async function registerDuplicateScan(item) {
-  const now = Date.now();
-  if (state.duplicateScanner.lastItemId === item.id && now - state.duplicateScanner.lastCapturedAt < 2600) {
-    setDuplicateScannerStatus("Figurinha ja registrada", item.label);
-    return;
-  }
-
-  const currentQuantity = getDuplicateQuantity(item);
-  state.duplicateScanner.lastItemId = item.id;
-  state.duplicateScanner.lastCapturedAt = now;
-  await setDuplicateQuantity(item, currentQuantity + 1);
-  setDuplicateScannerStatus("Figurinha capturada", `${item.label} (${currentQuantity + 1}x)`);
-}
-
-async function scanDuplicateFrame() {
-  if (!state.duplicateScanner.active || state.duplicateScanner.processing) return;
-
-  state.duplicateScanner.processing = true;
-  try {
-    const frame = prepareDuplicateScanFrame();
-    if (!frame) {
-      setDuplicateScannerStatus("Aguardando camera...");
-      return;
-    }
-
-    const worker = await getDuplicateOcrWorker();
-    const result = await worker.recognize(frame);
-    const item = parseDuplicateScanText(result?.data?.text || "");
-
-    if (item) {
-      await registerDuplicateScan(item);
-    } else {
-      setDuplicateScannerStatus("Procurando codigo...");
-    }
-  } catch (error) {
-    setDuplicateScannerStatus("Nao foi possivel ler agora.");
-  } finally {
-    state.duplicateScanner.processing = false;
-    if (state.duplicateScanner.active) {
-      state.duplicateScanner.timer = window.setTimeout(scanDuplicateFrame, 420);
-    }
-  }
-}
-
-async function startDuplicateCapture() {
-  if (!navigator.mediaDevices?.getUserMedia) {
-    window.alert("Camera nao disponivel neste navegador.");
-    return;
-  }
-
-  if (state.duplicateScanner.active) return;
-
-  try {
-    state.duplicateScanner.active = true;
-    els.duplicateScannerPanel.classList.remove("hidden");
-    setDuplicateScannerStatus("Abrindo camera...");
-
-    const stream = await navigator.mediaDevices.getUserMedia({
-      video: {
-        facingMode: { ideal: "environment" },
-        width: { ideal: 960 },
-        height: { ideal: 540 }
-      },
-      audio: false
-    });
-
-    state.duplicateScanner.stream = stream;
-    els.duplicateScannerVideo.srcObject = stream;
-    await els.duplicateScannerVideo.play();
-    setDuplicateScannerStatus("Procurando codigo...");
-    scanDuplicateFrame();
-  } catch (error) {
-    stopDuplicateCapture();
-    window.alert("Nao foi possivel abrir a camera.");
-  }
-}
-
-async function stopDuplicateCapture() {
-  state.duplicateScanner.active = false;
-  state.duplicateScanner.processing = false;
-
-  if (state.duplicateScanner.timer) {
-    window.clearTimeout(state.duplicateScanner.timer);
-    state.duplicateScanner.timer = null;
-  }
-
-  if (state.duplicateScanner.stream) {
-    state.duplicateScanner.stream.getTracks().forEach((track) => track.stop());
-    state.duplicateScanner.stream = null;
-  }
-
-  els.duplicateScannerVideo.srcObject = null;
-  els.duplicateScannerPanel.classList.add("hidden");
-
-  if (state.duplicateScanner.worker) {
-    await state.duplicateScanner.worker.terminate();
-    state.duplicateScanner.worker = null;
-  }
 }
 
 function updateDuplicateClearButton() {
@@ -2177,7 +1944,6 @@ async function openDuplicatesScreen() {
 
 function closeDuplicatesScreen() {
   state.duplicatesActive = false;
-  stopDuplicateCapture();
   els.duplicatesScreen.classList.add("hidden");
   els.albumsScreen.classList.remove("hidden");
   els.backButton.classList.add("hidden");
@@ -2729,8 +2495,6 @@ function registerEvents() {
   els.duplicateFilterToggle.addEventListener("click", () => {
     els.duplicateFilterPanel.classList.toggle("hidden");
   });
-  els.duplicateCaptureButton.addEventListener("click", startDuplicateCapture);
-  els.stopDuplicateCaptureButton.addEventListener("click", stopDuplicateCapture);
 
   [els.duplicateSearchInput, els.duplicateStatusFilter, els.duplicateTypeFilter].forEach((el) => {
     el.addEventListener("input", renderDuplicatesScreen);
