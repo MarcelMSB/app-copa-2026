@@ -2876,7 +2876,6 @@ async function updateInstalledPwa() {
   const button = els.updatePwaButton;
   button.disabled = true;
   button.classList.add("is-checking-update");
-  button.title = "Verificando atualização";
 
   try {
     const registration = await navigator.serviceWorker.getRegistration() || await registerServiceWorker();
@@ -2898,7 +2897,6 @@ async function updateInstalledPwa() {
     const updateWorker = updatedRegistration.installing || updatedRegistration.waiting;
 
     if (updateWorker) {
-      button.title = "Aplicando atualização";
       await waitForServiceWorkerActivation(updateWorker);
       reloadOnce();
       return;
@@ -2910,7 +2908,6 @@ async function updateInstalledPwa() {
   } finally {
     button.disabled = false;
     button.classList.remove("is-checking-update");
-    button.title = "Atualizar app";
   }
 }
 
