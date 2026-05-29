@@ -73,6 +73,7 @@
           </div>
 
           <div class="album-toolbar">
+            <button class="ghost-button neutral-button" id="duplicatesButton" type="button">Repetidas</button>
             <button class="ghost-button neutral-button" id="compareModeButton" type="button">Comparar álbuns</button>
             <div class="compare-actions hidden" id="compareActions">
               <span id="compareSelectionMeta">Selecione 2 álbuns</span>
@@ -192,6 +193,58 @@
             <div class="flag-row hidden" id="flagRow"></div>
             <div class="collection-grid" id="collectionGrid" aria-live="polite"></div>
             <p class="empty-state hidden" id="emptyCollection">Nenhum item encontrado com esses filtros.</p>
+          </section>
+        </section>
+
+        <section class="screen hidden" id="duplicatesScreen" aria-labelledby="duplicatesTitle">
+          <div class="duplicates-header">
+            <div class="duplicates-title-block">
+              <p class="eyebrow">Índice próprio</p>
+              <div class="title-row">
+                <h1 id="duplicatesTitle">Figurinhas repetidas</h1>
+                <div class="share-actions">
+                  <button class="summary-action-button duplicate-share-button" id="shareDuplicatesButton" type="button" aria-label="Compartilhar repetidas" title="Compartilhar">
+                    <img src="assets/ui/share-2.svg" alt="" aria-hidden="true">
+                  </button>
+                  <button class="summary-action-button duplicate-whatsapp-button whatsapp-button" id="whatsappDuplicatesButton" type="button" aria-label="Compartilhar repetidas no WhatsApp" title="WhatsApp">
+                    <img src="assets/ui/whatsapp.svg" alt="" aria-hidden="true">
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <section class="mode-panel duplicates-filter-shell" aria-label="Filtros de repetidas">
+            <button class="filter-toggle" id="duplicateFilterToggle" type="button">Filtros</button>
+            <button class="ghost-button clear-filter-button hidden" id="duplicateClearFilterButton" type="button">Limpar</button>
+            <div class="filter-panel duplicates-filters hidden" id="duplicateFilterPanel">
+              <label class="search-field">
+                <span>Buscar</span>
+                <input id="duplicateSearchInput" placeholder="Time, sigla, grupo ou figurinha">
+              </label>
+              <label>
+                Status
+                <select id="duplicateStatusFilter">
+                  <option value="all">Todas</option>
+                  <option value="with">Com repetidas</option>
+                  <option value="empty">Sem repetidas</option>
+                </select>
+              </label>
+              <label>
+                Tipo
+                <select id="duplicateTypeFilter">
+                  <option value="all">Todas</option>
+                  <option value="emblem">Emblemas</option>
+                  <option value="profile">Seleções perfiladas</option>
+                  <option value="standard">Demais figurinhas</option>
+                </select>
+              </label>
+            </div>
+          </section>
+
+          <section class="compare-panel duplicates-panel" aria-live="polite">
+            <div class="compare-result duplicates-result" id="duplicatesResult"></div>
+            <p class="empty-state hidden" id="emptyDuplicates">Nenhuma figurinha encontrada com esses filtros.</p>
           </section>
         </section>
       </main>

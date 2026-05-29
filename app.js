@@ -1,7 +1,8 @@
 const DB_NAME = "copa-2026-album-db";
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 const ALBUM_STORE = "albums";
 const STICKER_STORE = "stickers";
+const DUPLICATE_STORE = "duplicates";
 const VIEW_MODE_STORAGE_KEY = "copa-2026-view-mode";
 const THEME_STORAGE_KEY = "copa-2026-theme";
 const DEFAULT_VIEW_MODE = "group";
@@ -219,7 +220,9 @@ const state = {
   albums: [],
   allStickers: [],
   stickers: [],
+  duplicates: [],
   activeAlbum: null,
+  duplicatesActive: false,
   viewMode: getSavedViewMode(),
   selectedGroupId: null,
   selectedTeamCode: null,
@@ -238,6 +241,7 @@ const state = {
 const els = {
   albumsScreen: document.querySelector("#albumsScreen"),
   stickersScreen: document.querySelector("#stickersScreen"),
+  duplicatesScreen: document.querySelector("#duplicatesScreen"),
   albumCreateActions: document.querySelector("#albumCreateActions"),
   showAlbumFormButton: document.querySelector("#showAlbumFormButton"),
   cancelAlbumFormButton: document.querySelector("#cancelAlbumFormButton"),
@@ -248,6 +252,7 @@ const els = {
   importAlbumButton: document.querySelector("#importAlbumButton"),
   importAlbumInput: document.querySelector("#importAlbumInput"),
   compareModeButton: document.querySelector("#compareModeButton"),
+  duplicatesButton: document.querySelector("#duplicatesButton"),
   compareActions: document.querySelector("#compareActions"),
   compareSelectionMeta: document.querySelector("#compareSelectionMeta"),
   runCompareButton: document.querySelector("#runCompareButton"),
@@ -276,6 +281,8 @@ const els = {
   progressSummary: document.querySelector("#progressSummary"),
   shareCollectionButton: document.querySelector("#shareCollectionButton"),
   whatsappShareButton: document.querySelector("#whatsappShareButton"),
+  shareDuplicatesButton: document.querySelector("#shareDuplicatesButton"),
+  whatsappDuplicatesButton: document.querySelector("#whatsappDuplicatesButton"),
   modeOptions: document.querySelector("#modeOptions"),
   filterToggle: document.querySelector("#filterToggle"),
   filterPanel: document.querySelector("#filterPanel"),
@@ -289,6 +296,14 @@ const els = {
   flagRow: document.querySelector("#flagRow"),
   collectionGrid: document.querySelector("#collectionGrid"),
   emptyCollection: document.querySelector("#emptyCollection"),
+  duplicateFilterToggle: document.querySelector("#duplicateFilterToggle"),
+  duplicateFilterPanel: document.querySelector("#duplicateFilterPanel"),
+  duplicateSearchInput: document.querySelector("#duplicateSearchInput"),
+  duplicateStatusFilter: document.querySelector("#duplicateStatusFilter"),
+  duplicateTypeFilter: document.querySelector("#duplicateTypeFilter"),
+  duplicateClearFilterButton: document.querySelector("#duplicateClearFilterButton"),
+  duplicatesResult: document.querySelector("#duplicatesResult"),
+  emptyDuplicates: document.querySelector("#emptyDuplicates"),
   albumCardTemplate: document.querySelector("#albumCardTemplate")
 };
 
@@ -542,6 +557,21 @@ function openDatabase() {
 
       if (!stickerStore.indexNames.contains("albumItem")) {
         stickerStore.createIndex("albumItem", ["albumId", "itemId"], { unique: true });
+      }
+
+      let duplicateStore;
+      if (!db.objectStoreNames.contains(DUPLICATE_STORE)) {
+        duplicateStore = db.createObjectStore(DUPLICATE_STORE, { keyPath: "id" });
+      } else {
+        duplicateStore = request.transaction.objectStore(DUPLICATE_STORE);
+      }
+
+      if (!duplicateStore.indexNames.contains("itemId")) {
+        duplicateStore.createIndex("itemId", "itemId", { unique: true });
+      }
+
+      if (!duplicateStore.indexNames.contains("teamCode")) {
+        duplicateStore.createIndex("teamCode", "teamCode", { unique: false });
       }
     };
 
@@ -905,6 +935,83 @@ function getVisibleItems() {
   });
 }
 
+function getDuplicateItems() {
+  return COLLECTION_ITEMS;
+}
+
+function getDuplicateMap() {
+  return new Map(state.duplicates.filter((item) => item.itemId).map((item) => [item.itemId, item]));
+}
+
+function getDuplicateQuantity(item) {
+  return getDuplicateMap().get(item.id)?.quantity || 0;
+}
+
+function getVisibleDuplicateItems() {
+  const query = els.duplicateSearchInput.value.trim().toLowerCase();
+  const status = els.duplicateStatusFilter.value;
+  const stickerType = els.duplicateTypeFilter.value;
+  const duplicateMap = getDuplicateMap();
+
+  return getDuplicateItems().filter((item) => {
+    const record = duplicateMap.get(item.id);
+    const quantity = record?.quantity || 0;
+    const group = GROUP_BY_ID.get(item.groupId);
+    const haystack = `${item.label} ${item.teamCode} ${item.teamName} ${group?.name || ""} ${item.stickerTypeLabel || ""}`.toLowerCase();
+    const matchesQuery = !query || haystack.includes(query);
+    const matchesStatus =
+      status === "all" ||
+      (status === "with" && quantity > 0) ||
+      (status === "empty" && quantity === 0);
+    const matchesType = stickerType === "all" || item.stickerType === stickerType;
+
+    return matchesQuery && matchesStatus && matchesType;
+  });
+}
+
+function createDuplicateRecord(item, quantity) {
+  return {
+    id: item.id,
+    itemId: item.id,
+    label: item.label,
+    number: item.number,
+    teamCode: item.teamCode,
+    teamName: item.teamName,
+    groupId: item.groupId,
+    groupName: item.groupName,
+    quantity,
+    updatedAt: Date.now()
+  };
+}
+
+async function loadDuplicates() {
+  state.duplicates = await getAll(DUPLICATE_STORE);
+  renderDuplicatesScreen();
+}
+
+async function setDuplicateQuantity(item, quantity) {
+  const safeQuantity = Math.max(0, Number(quantity) || 0);
+
+  if (safeQuantity <= 0) {
+    await deleteItem(DUPLICATE_STORE, item.id);
+  } else {
+    await putItem(DUPLICATE_STORE, createDuplicateRecord(item, safeQuantity));
+  }
+
+  await loadDuplicates();
+  savePulse();
+}
+
+function updateDuplicateClearButton() {
+  const hasFilter = Boolean(
+    els.duplicateSearchInput.value.trim() ||
+    els.duplicateStatusFilter.value !== "all" ||
+    els.duplicateTypeFilter.value !== "all"
+  );
+
+  els.duplicateClearFilterButton.classList.toggle("hidden", !hasFilter);
+}
+
 function groupItemsByTeam(items) {
   const map = new Map();
 
@@ -1039,6 +1146,60 @@ function appendCompactItemLines(lines, items) {
     const numbers = teamItems.map(formatMissingShareNumber).join(", ");
     lines.push(`${formatMissingShareTeamCode(teamCode)}${emojiSuffix}: ${numbers}`);
   });
+}
+
+function formatDuplicateShareNumber(item, duplicateMap) {
+  const quantity = duplicateMap.get(item.id)?.quantity || 0;
+  const number = formatMissingShareNumber(item);
+  return quantity > 1 ? `${number} (${quantity}x)` : number;
+}
+
+function appendDuplicateItemLines(lines, items, duplicateMap) {
+  const grouped = groupItemsByTeam(items);
+  grouped.forEach((teamItems, teamCode) => {
+    const team = TEAM_BY_CODE.get(teamCode);
+    const emoji = getShareTeamEmoji(team);
+    const emojiSuffix = emoji ? ` ${emoji}` : "";
+    const numbers = teamItems.map((item) => formatDuplicateShareNumber(item, duplicateMap)).join(", ");
+    lines.push(`${formatMissingShareTeamCode(teamCode)}${emojiSuffix}: ${numbers}`);
+  });
+}
+
+function buildDuplicateShareText(duplicates = state.duplicates) {
+  const duplicateMap = new Map(duplicates.filter((item) => item.itemId).map((item) => [item.itemId, item]));
+  const items = getDuplicateItems().filter((item) => (duplicateMap.get(item.id)?.quantity || 0) > 0);
+  const lines = [
+    "Figurinhas App",
+    "Repetidas",
+    ""
+  ];
+
+  if (!items.length) {
+    lines.push("Nenhuma figurinha repetida cadastrada.");
+    return lines.join("\n");
+  }
+
+  appendDuplicateItemLines(lines, items, duplicateMap);
+  return lines.join("\n").trim();
+}
+
+async function shareDuplicates(useWhatsApp = false) {
+  const whatsappWindow = useWhatsApp ? window.open("about:blank", "_blank") : null;
+  const duplicates = await getAll(DUPLICATE_STORE);
+  const text = buildDuplicateShareText(duplicates);
+
+  if (useWhatsApp) {
+    const url = `https://wa.me/?text=${encodeURIComponent(text)}`;
+    if (whatsappWindow) {
+      whatsappWindow.opener = null;
+      whatsappWindow.location.href = url;
+    } else {
+      window.open(url, "_blank", "noopener");
+    }
+    return;
+  }
+
+  await shareText(text, "Figurinhas repetidas");
 }
 
 function buildNeededFromTextShareText(album, items) {
@@ -1779,6 +1940,108 @@ function closeAlbum() {
   loadAlbums();
 }
 
+async function openDuplicatesScreen() {
+  state.duplicatesActive = true;
+  state.activeAlbum = null;
+  setCompareMode(false);
+  els.comparePanel.classList.add("hidden");
+  discardMissingReview();
+  els.albumsScreen.classList.add("hidden");
+  els.stickersScreen.classList.add("hidden");
+  els.duplicatesScreen.classList.remove("hidden");
+  els.backButton.classList.remove("hidden");
+  await loadDuplicates();
+}
+
+function closeDuplicatesScreen() {
+  state.duplicatesActive = false;
+  els.duplicatesScreen.classList.add("hidden");
+  els.albumsScreen.classList.remove("hidden");
+  els.backButton.classList.add("hidden");
+  loadAlbums();
+}
+
+function createDuplicateControl(item, duplicateMap) {
+  const quantity = duplicateMap.get(item.id)?.quantity || 0;
+  const row = document.createElement("button");
+  row.className = "duplicate-item";
+  row.classList.toggle("has-duplicates", quantity > 0);
+  row.type = "button";
+  row.setAttribute(
+    "aria-label",
+    `${item.label}, ${quantity} repetidas. Um toque adiciona, dois toques diminuem.`
+  );
+
+  const label = document.createElement("span");
+  label.className = "duplicate-label";
+  label.textContent = formatDuplicateDisplayNumber(item);
+
+  const value = document.createElement("span");
+  value.className = "duplicate-quantity";
+  value.textContent = `${quantity}x`;
+
+  let clickTimer = null;
+  row.addEventListener("click", () => {
+    if (clickTimer) {
+      window.clearTimeout(clickTimer);
+      clickTimer = null;
+      setDuplicateQuantity(item, quantity - 1);
+      return;
+    }
+
+    clickTimer = window.setTimeout(() => {
+      clickTimer = null;
+      setDuplicateQuantity(item, quantity + 1);
+    }, 260);
+  });
+
+  row.append(label, value);
+  return row;
+}
+
+function createDuplicateTeamSection(teamItems, teamCode, duplicateMap) {
+  const team = TEAM_BY_CODE.get(teamCode);
+  const totalQuantity = teamItems.reduce((sum, item) => sum + (duplicateMap.get(item.id)?.quantity || 0), 0);
+  const section = document.createElement("section");
+  section.className = "compare-team duplicate-team";
+
+  section.append(createTeamTitleElement(teamCode));
+
+  const meta = document.createElement("p");
+  meta.className = "compare-count duplicate-team-meta";
+  meta.textContent = totalQuantity === 1 ? "1 repetida" : `${totalQuantity} repetidas`;
+  section.append(meta);
+
+  const list = document.createElement("div");
+  list.className = "duplicate-list";
+  teamItems.forEach((item) => list.append(createDuplicateControl(item, duplicateMap)));
+
+  section.append(list);
+  return section;
+}
+
+function formatDuplicateDisplayNumber(item) {
+  if (item.teamCode === "PANINI" && Number(item.number) === 0) return "00";
+  return String(item.number);
+}
+
+function renderDuplicatesScreen() {
+  if (!state.duplicatesActive) return;
+
+  els.duplicatesResult.textContent = "";
+  updateDuplicateClearButton();
+
+  const duplicateMap = getDuplicateMap();
+  const visibleItems = getVisibleDuplicateItems();
+
+  const grouped = groupItemsByTeam(visibleItems);
+  grouped.forEach((teamItems, teamCode) => {
+    els.duplicatesResult.append(createDuplicateTeamSection(teamItems, teamCode, duplicateMap));
+  });
+
+  els.emptyDuplicates.classList.toggle("hidden", visibleItems.length > 0);
+}
+
 function renderStickerScreen() {
   const album = state.activeAlbum;
   if (!album) return;
@@ -2181,7 +2444,15 @@ function registerEvents() {
   els.closeMissingReviewButton.addEventListener("click", handleMissingReviewClose);
   els.finishReorderButton.addEventListener("click", () => setReorderMode(false));
 
-  els.backButton.addEventListener("click", closeAlbum);
+  els.backButton.addEventListener("click", () => {
+    if (state.duplicatesActive) {
+      closeDuplicatesScreen();
+      return;
+    }
+
+    closeAlbum();
+  });
+  els.duplicatesButton.addEventListener("click", openDuplicatesScreen);
   els.shareCollectionButton.addEventListener("click", async () => {
     try {
       await shareCollectionText();
@@ -2192,6 +2463,16 @@ function registerEvents() {
     }
   });
   els.whatsappShareButton.addEventListener("click", shareCollectionOnWhatsApp);
+  els.shareDuplicatesButton.addEventListener("click", async () => {
+    try {
+      await shareDuplicates();
+    } catch (error) {
+      if (error?.name !== "AbortError") {
+        window.alert("NÃ£o foi possÃ­vel compartilhar as repetidas agora.");
+      }
+    }
+  });
+  els.whatsappDuplicatesButton.addEventListener("click", () => shareDuplicates(true));
   els.collectionBackButton.addEventListener("click", handleCollectionBack);
   els.filterToggle.addEventListener("click", () => {
     els.filterPanel.classList.toggle("hidden");
@@ -2214,6 +2495,21 @@ function registerEvents() {
   [els.searchInput, els.statusFilter, els.stickerTypeFilter].forEach((el) => {
     el.addEventListener("input", renderCollection);
     el.addEventListener("change", renderCollection);
+  });
+
+  els.duplicateClearFilterButton.addEventListener("click", () => {
+    els.duplicateSearchInput.value = "";
+    els.duplicateStatusFilter.value = "all";
+    els.duplicateTypeFilter.value = "all";
+    renderDuplicatesScreen();
+  });
+  els.duplicateFilterToggle.addEventListener("click", () => {
+    els.duplicateFilterPanel.classList.toggle("hidden");
+  });
+
+  [els.duplicateSearchInput, els.duplicateStatusFilter, els.duplicateTypeFilter].forEach((el) => {
+    el.addEventListener("input", renderDuplicatesScreen);
+    el.addEventListener("change", renderDuplicatesScreen);
   });
 
   window.addEventListener("beforeinstallprompt", (event) => {

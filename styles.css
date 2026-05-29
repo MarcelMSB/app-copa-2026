@@ -558,6 +558,143 @@ select:focus {
   font-weight: 850;
 }
 
+.duplicates-header {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 14px;
+  align-items: end;
+  padding: 18px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: 0 8px 22px rgba(23, 35, 31, 0.05);
+}
+
+.duplicates-header h1 {
+  margin: 4px 0 0;
+  font-size: clamp(1.7rem, 6vw, 2.5rem);
+  line-height: 1;
+}
+
+.duplicates-title-block {
+  min-width: 0;
+}
+
+.duplicates-header .title-row {
+  align-items: center;
+}
+
+.duplicates-header .summary-action-button {
+  border-color: var(--line);
+  background: var(--field-bg);
+  color: var(--ink);
+}
+
+.duplicates-header .summary-action-button img {
+  filter: none;
+}
+
+.duplicates-header .summary-action-button:hover {
+  background: var(--surface-soft);
+}
+
+.duplicates-header .duplicate-whatsapp-button {
+  border-color: rgba(37, 211, 102, 0.55);
+}
+
+.duplicates-header .duplicate-whatsapp-button img {
+  filter: invert(67%) sepia(72%) saturate(635%) hue-rotate(88deg) brightness(93%) contrast(88%);
+}
+
+:root[data-theme="dark"] .duplicates-header .duplicate-share-button img {
+  filter: brightness(0) invert(1);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) .duplicates-header .duplicate-share-button img {
+    filter: brightness(0) invert(1);
+  }
+}
+
+.duplicates-filter-shell {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.duplicates-filters {
+  grid-column: 1 / -1;
+  grid-template-columns: minmax(0, 1fr) minmax(150px, 210px) minmax(170px, 240px);
+  align-items: end;
+  padding-top: 2px;
+}
+
+.duplicates-panel {
+  padding: 14px;
+}
+
+.duplicates-result {
+  grid-template-columns: 1fr;
+}
+
+.duplicate-team {
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-soft);
+}
+
+.duplicate-team-meta {
+  padding-left: 34px;
+}
+
+.duplicate-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(74px, 1fr));
+  gap: 8px;
+}
+
+.duplicate-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: center;
+  justify-items: center;
+  gap: 3px;
+  min-height: 62px;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--field-bg);
+  color: var(--ink);
+  text-align: center;
+  touch-action: manipulation;
+}
+
+.duplicate-item.has-duplicates {
+  border-color: rgba(15, 107, 87, 0.46);
+  background: rgba(15, 107, 87, 0.1);
+  box-shadow: 0 0 0 2px rgba(15, 107, 87, 0.06);
+}
+
+.duplicate-label {
+  color: var(--ink);
+  font-size: 1.05rem;
+  font-weight: 950;
+  line-height: 1;
+}
+
+.duplicate-quantity {
+  display: grid;
+  place-items: center;
+  min-height: 20px;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 950;
+}
+
+.duplicate-item.has-duplicates .duplicate-quantity {
+  color: var(--green-strong);
+}
+
 .album-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
@@ -1396,7 +1533,8 @@ select:focus {
 
 @media (max-width: 880px) {
   .intro-band,
-  .album-dashboard {
+  .album-dashboard,
+  .duplicates-header {
     grid-template-columns: 1fr;
   }
 
@@ -1414,7 +1552,8 @@ select:focus {
   .album-form,
   .album-create-actions,
   .mode-panel,
-  .filter-panel {
+  .filter-panel,
+  .duplicates-filters {
     grid-template-columns: 1fr;
   }
 
