@@ -77,6 +77,7 @@
 
           <div class="album-toolbar">
             <button class="ghost-button neutral-button" id="duplicatesButton" type="button">Repetidas</button>
+            <button class="ghost-button neutral-button" id="missingHubButton" type="button">Faltantes</button>
             <button class="ghost-button neutral-button" id="compareModeButton" type="button">Comparar álbuns</button>
             <div class="compare-actions hidden" id="compareActions">
               <span id="compareSelectionMeta">Selecione 2 álbuns</span>
@@ -110,6 +111,89 @@
 
           <div class="album-grid" id="albumList" aria-live="polite"></div>
           <p class="empty-state hidden" id="emptyAlbums">Crie seu primeiro álbum para começar a marcar as figurinhas.</p>
+        </section>
+
+        <section class="screen hidden" id="missingHubScreen" aria-labelledby="missingHubTitle">
+          <div class="duplicates-header">
+            <div class="duplicates-title-block">
+              <p class="eyebrow">Álbum ativo</p>
+              <div class="title-row">
+                <h1 id="missingHubTitle">Faltantes</h1>
+              </div>
+              <p class="duplicates-summary" id="missingHubSummary">0 individuais - 0 no total</p>
+            </div>
+          </div>
+
+          <section class="mode-panel duplicates-filter-shell" aria-label="Filtros de faltantes">
+            <button class="filter-toggle" id="missingHubFilterToggle" type="button">Filtros</button>
+            <button class="ghost-button neutral-button" id="copyVisibleMissingButton" type="button">Copiar faltantes</button>
+            <button class="ghost-button clear-filter-button hidden" id="missingHubClearFilterButton" type="button">Limpar</button>
+            <div class="filter-panel missing-hub-filters hidden" id="missingHubFilterPanel">
+              <label>
+                Álbum
+                <button class="picker-button" id="missingHubAlbumPickerButton" type="button">Todos os álbuns</button>
+                <select id="missingHubAlbumFilter" class="hidden" multiple>
+                  <option value="all">Todos</option>
+                </select>
+              </label>
+              <label>
+                Time
+                <button class="picker-button" id="missingHubTeamPickerButton" type="button">Todos os times</button>
+                <select id="missingHubTeamFilter" class="hidden" multiple>
+                  <option value="all">Todos</option>
+                </select>
+              </label>
+              <label>
+                Tipo
+                <select id="missingHubTypeFilter">
+                  <option value="all">Todas</option>
+                  <option value="emblem">Emblemas</option>
+                  <option value="profile">Seleções perfiladas</option>
+                  <option value="standard">Demais figurinhas</option>
+                </select>
+              </label>
+            </div>
+          </section>
+
+          <section class="compare-panel missing-pick-panel hidden" id="missingPickPanel" aria-live="polite">
+            <div class="compare-panel-heading">
+              <div>
+                <p class="panel-kicker">Temporária</p>
+                <h2>Figurinhas marcadas</h2>
+              </div>
+              <div class="missing-pick-actions">
+                <button class="ghost-button neutral-button" id="copyMissingPicksButton" type="button">Copiar</button>
+                <button class="ghost-button neutral-button" id="clearMissingPicksButton" type="button">Limpar</button>
+              </div>
+            </div>
+            <div class="compare-result missing-pick-result" id="missingPickResult"></div>
+          </section>
+
+          <section class="compare-panel missing-hub-panel" aria-live="polite">
+            <div class="compare-result missing-hub-result" id="missingHubResult"></div>
+            <p class="empty-state hidden" id="emptyMissingHub">Nenhuma figurinha faltando com esses filtros.</p>
+          </section>
+
+          <section class="picker-modal hidden" id="missingFilterPickerModal" aria-labelledby="missingFilterPickerTitle" aria-modal="true" role="dialog">
+            <div class="picker-modal-card">
+              <div class="compare-panel-heading">
+                <div>
+                  <p class="panel-kicker">Filtro</p>
+                  <h2 id="missingFilterPickerTitle">Selecionar</h2>
+                </div>
+                <div class="picker-heading-actions">
+                  <input id="missingFilterPickerSearch" placeholder="Buscar">
+                  <button class="ghost-button neutral-button" id="cancelMissingFilterPickerButton" type="button">Cancelar</button>
+                </div>
+              </div>
+              <div class="picker-options" id="missingFilterPickerOptions"></div>
+              <div class="missing-review-actions">
+                <button class="ghost-button neutral-button" id="selectAllMissingFilterPickerButton" type="button">Selecionar todos</button>
+                <button class="ghost-button neutral-button" id="clearMissingFilterPickerButton" type="button">Limpar seleção</button>
+                <button class="primary-button" id="applyMissingFilterPickerButton" type="button">Aplicar</button>
+              </div>
+            </div>
+          </section>
         </section>
 
         <section class="screen hidden" id="stickersScreen" aria-labelledby="stickersTitle">

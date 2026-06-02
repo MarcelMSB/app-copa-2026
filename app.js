@@ -1,8 +1,9 @@
 const DB_NAME = "copa-2026-album-db";
-const DB_VERSION = 3;
+const DB_VERSION = 4;
 const ALBUM_STORE = "albums";
 const STICKER_STORE = "stickers";
 const DUPLICATE_STORE = "duplicates";
+const MISSING_PICK_STORE = "missingPicks";
 const VIEW_MODE_STORAGE_KEY = "copa-2026-view-mode";
 const THEME_STORAGE_KEY = "copa-2026-theme";
 const DEFAULT_VIEW_MODE = "group";
@@ -221,8 +222,14 @@ const state = {
   allStickers: [],
   stickers: [],
   duplicates: [],
+  missingPicks: [],
   activeAlbum: null,
   duplicatesActive: false,
+  missingHubActive: false,
+  missingHubSessionPicks: new Map(),
+  missingFilterPickerKind: null,
+  missingFilterPickerItems: [],
+  missingFilterPickerSelectedValues: new Set(),
   viewMode: getSavedViewMode(),
   selectedGroupId: null,
   selectedTeamCode: null,
@@ -242,6 +249,7 @@ const els = {
   albumsScreen: document.querySelector("#albumsScreen"),
   stickersScreen: document.querySelector("#stickersScreen"),
   duplicatesScreen: document.querySelector("#duplicatesScreen"),
+  missingHubScreen: document.querySelector("#missingHubScreen"),
   albumCreateActions: document.querySelector("#albumCreateActions"),
   showAlbumFormButton: document.querySelector("#showAlbumFormButton"),
   cancelAlbumFormButton: document.querySelector("#cancelAlbumFormButton"),
@@ -253,6 +261,7 @@ const els = {
   importAlbumInput: document.querySelector("#importAlbumInput"),
   compareModeButton: document.querySelector("#compareModeButton"),
   duplicatesButton: document.querySelector("#duplicatesButton"),
+  missingHubButton: document.querySelector("#missingHubButton"),
   compareActions: document.querySelector("#compareActions"),
   compareSelectionMeta: document.querySelector("#compareSelectionMeta"),
   runCompareButton: document.querySelector("#runCompareButton"),
@@ -297,6 +306,30 @@ const els = {
   flagRow: document.querySelector("#flagRow"),
   collectionGrid: document.querySelector("#collectionGrid"),
   emptyCollection: document.querySelector("#emptyCollection"),
+  missingHubSummary: document.querySelector("#missingHubSummary"),
+  missingHubFilterToggle: document.querySelector("#missingHubFilterToggle"),
+  missingHubFilterPanel: document.querySelector("#missingHubFilterPanel"),
+  missingHubAlbumPickerButton: document.querySelector("#missingHubAlbumPickerButton"),
+  missingHubAlbumFilter: document.querySelector("#missingHubAlbumFilter"),
+  missingHubTeamPickerButton: document.querySelector("#missingHubTeamPickerButton"),
+  missingHubTeamFilter: document.querySelector("#missingHubTeamFilter"),
+  missingHubTypeFilter: document.querySelector("#missingHubTypeFilter"),
+  missingFilterPickerModal: document.querySelector("#missingFilterPickerModal"),
+  missingFilterPickerTitle: document.querySelector("#missingFilterPickerTitle"),
+  missingFilterPickerSearch: document.querySelector("#missingFilterPickerSearch"),
+  missingFilterPickerOptions: document.querySelector("#missingFilterPickerOptions"),
+  applyMissingFilterPickerButton: document.querySelector("#applyMissingFilterPickerButton"),
+  cancelMissingFilterPickerButton: document.querySelector("#cancelMissingFilterPickerButton"),
+  selectAllMissingFilterPickerButton: document.querySelector("#selectAllMissingFilterPickerButton"),
+  clearMissingFilterPickerButton: document.querySelector("#clearMissingFilterPickerButton"),
+  copyVisibleMissingButton: document.querySelector("#copyVisibleMissingButton"),
+  missingHubClearFilterButton: document.querySelector("#missingHubClearFilterButton"),
+  missingPickPanel: document.querySelector("#missingPickPanel"),
+  missingPickResult: document.querySelector("#missingPickResult"),
+  clearMissingPicksButton: document.querySelector("#clearMissingPicksButton"),
+  copyMissingPicksButton: document.querySelector("#copyMissingPicksButton"),
+  missingHubResult: document.querySelector("#missingHubResult"),
+  emptyMissingHub: document.querySelector("#emptyMissingHub"),
   duplicateFilterToggle: document.querySelector("#duplicateFilterToggle"),
   duplicateFilterPanel: document.querySelector("#duplicateFilterPanel"),
   duplicateListCheckButton: document.querySelector("#duplicateListCheckButton"),
@@ -582,6 +615,21 @@ function openDatabase() {
 
       if (!duplicateStore.indexNames.contains("teamCode")) {
         duplicateStore.createIndex("teamCode", "teamCode", { unique: false });
+      }
+
+      let missingPickStore;
+      if (!db.objectStoreNames.contains(MISSING_PICK_STORE)) {
+        missingPickStore = db.createObjectStore(MISSING_PICK_STORE, { keyPath: "id" });
+      } else {
+        missingPickStore = request.transaction.objectStore(MISSING_PICK_STORE);
+      }
+
+      if (!missingPickStore.indexNames.contains("itemId")) {
+        missingPickStore.createIndex("itemId", "itemId", { unique: true });
+      }
+
+      if (!missingPickStore.indexNames.contains("teamCode")) {
+        missingPickStore.createIndex("teamCode", "teamCode", { unique: false });
       }
     };
 
@@ -1024,6 +1072,313 @@ function updateDuplicateClearButton() {
   );
 
   els.duplicateClearFilterButton.classList.toggle("hidden", !hasFilter);
+}
+
+function createMissingPickRecord(item, quantity) {
+  return {
+    id: item.id,
+    itemId: item.id,
+    label: item.label,
+    number: item.number,
+    teamCode: item.teamCode,
+    teamName: item.teamName,
+    groupId: item.groupId,
+    groupName: item.groupName,
+    quantity,
+    updatedAt: Date.now()
+  };
+}
+
+async function loadMissingPicks() {
+  state.missingPicks = await getAll(MISSING_PICK_STORE);
+  renderMissingHubScreen();
+}
+
+function getMissingPickMap() {
+  return new Map(state.missingPicks.filter((item) => item.itemId).map((item) => [item.itemId, item]));
+}
+
+async function setMissingPickQuantity(item, quantity) {
+  const safeQuantity = Math.max(0, Number(quantity) || 0);
+
+  if (safeQuantity <= 0) {
+    await deleteItem(MISSING_PICK_STORE, item.id);
+  } else {
+    await putItem(MISSING_PICK_STORE, createMissingPickRecord(item, safeQuantity));
+  }
+
+  await loadMissingPicks();
+  savePulse();
+}
+
+async function addMissingPick(item) {
+  const currentQuantity = getMissingPickMap().get(item.id)?.quantity || 0;
+  const sessionQuantity = state.missingHubSessionPicks.get(item.id) || 0;
+  state.missingHubSessionPicks.set(item.id, sessionQuantity + 1);
+  await setMissingPickQuantity(item, currentQuantity + 1);
+}
+
+async function removeMissingPick(item) {
+  const currentQuantity = getMissingPickMap().get(item.id)?.quantity || 0;
+  const sessionQuantity = state.missingHubSessionPicks.get(item.id) || 0;
+
+  if (sessionQuantity > 1) {
+    state.missingHubSessionPicks.set(item.id, sessionQuantity - 1);
+  } else if (sessionQuantity === 1) {
+    state.missingHubSessionPicks.delete(item.id);
+  }
+
+  await setMissingPickQuantity(item, currentQuantity - 1);
+}
+
+async function clearMissingPicks() {
+  await clearStore(MISSING_PICK_STORE);
+  state.missingPicks = [];
+  state.missingHubSessionPicks = new Map();
+  renderMissingHubScreen();
+  savePulse();
+}
+
+function getMissingHubAlbumIds() {
+  const selectedAlbumIds = Array.from(els.missingHubAlbumFilter.selectedOptions)
+    .map((option) => option.value)
+    .filter((value) => value !== "all");
+
+  if (selectedAlbumIds.length) return selectedAlbumIds;
+  return state.albums.map((album) => album.id);
+}
+
+function getMissingHubTeamCodes() {
+  return Array.from(els.missingHubTeamFilter.selectedOptions)
+    .map((option) => option.value)
+    .filter((value) => value !== "all");
+}
+
+function getMissingHubAggregates() {
+  const selectedAlbumIds = new Set(getMissingHubAlbumIds());
+  const selectedTeamCodes = new Set(getMissingHubTeamCodes());
+  const selectedType = els.missingHubTypeFilter.value;
+  const aggregates = new Map();
+
+  state.albums
+    .filter((album) => selectedAlbumIds.has(album.id))
+    .forEach((album) => {
+      const albumStickers = state.allStickers.filter((sticker) => sticker.albumId === album.id);
+      const stickerMap = getStickerMapFromList(albumStickers);
+
+      getCollectionItems(album)
+        .filter((item) => !selectedTeamCodes.size || selectedTeamCodes.has(item.teamCode))
+        .filter((item) => selectedType === "all" || item.stickerType === selectedType)
+        .filter((item) => !isOwned(stickerMap.get(item.id)))
+        .forEach((item) => {
+          const current = aggregates.get(item.id) || {
+            item,
+            quantity: 0,
+            albumIds: new Set()
+          };
+          current.quantity += 1;
+          current.albumIds.add(album.id);
+          aggregates.set(item.id, current);
+        });
+    });
+
+  return Array.from(aggregates.values())
+    .map((entry) => {
+      const selectedQuantity = state.missingHubSessionPicks.get(entry.item.id) || 0;
+      return {
+        ...entry,
+        quantity: Math.max(0, entry.quantity - selectedQuantity)
+      };
+    })
+    .filter((entry) => entry.quantity > 0);
+}
+
+function populateMissingHubFilters() {
+  const currentAlbums = new Set(Array.from(els.missingHubAlbumFilter.selectedOptions || []).map((option) => option.value));
+  const currentTeams = new Set(Array.from(els.missingHubTeamFilter.selectedOptions || []).map((option) => option.value));
+
+  els.missingHubAlbumFilter.textContent = "";
+  const allAlbums = document.createElement("option");
+  allAlbums.value = "all";
+  allAlbums.textContent = "Todos";
+  allAlbums.selected = !currentAlbums.size || currentAlbums.has("all");
+  els.missingHubAlbumFilter.append(allAlbums);
+  state.albums.forEach((album) => {
+    const option = document.createElement("option");
+    option.value = album.id;
+    option.textContent = album.name;
+    option.selected = currentAlbums.has(album.id);
+    els.missingHubAlbumFilter.append(option);
+  });
+
+  els.missingHubTeamFilter.textContent = "";
+  const allTeams = document.createElement("option");
+  allTeams.value = "all";
+  allTeams.textContent = "Todos";
+  allTeams.selected = !currentTeams.size || currentTeams.has("all");
+  els.missingHubTeamFilter.append(allTeams);
+  TEAMS.forEach((team) => {
+    const option = document.createElement("option");
+    option.value = team.code;
+    option.textContent = `${team.code} - ${team.name}`;
+    option.selected = currentTeams.has(team.code);
+    els.missingHubTeamFilter.append(option);
+  });
+  updateMissingHubPickerLabels();
+}
+
+function updateMissingHubClearButton() {
+  const selectedAlbumIds = Array.from(els.missingHubAlbumFilter.selectedOptions)
+    .map((option) => option.value)
+    .filter((value) => value !== "all");
+  const selectedTeamCodes = getMissingHubTeamCodes();
+  const hasFilter = Boolean(
+    selectedAlbumIds.length ||
+    selectedTeamCodes.length ||
+    els.missingHubTypeFilter.value !== "all"
+  );
+
+  els.missingHubClearFilterButton.classList.toggle("hidden", !hasFilter);
+}
+
+function normalizeMissingHubAlbumSelection() {
+  const selectedSpecificAlbums = Array.from(els.missingHubAlbumFilter.selectedOptions)
+    .filter((option) => option.value !== "all");
+
+  if (selectedSpecificAlbums.length) {
+    const allOption = Array.from(els.missingHubAlbumFilter.options).find((option) => option.value === "all");
+    if (allOption) allOption.selected = false;
+    return;
+  }
+
+  const allOption = Array.from(els.missingHubAlbumFilter.options).find((option) => option.value === "all");
+  if (allOption) allOption.selected = true;
+}
+
+function normalizeMissingHubTeamSelection() {
+  const selectedSpecificTeams = Array.from(els.missingHubTeamFilter.selectedOptions)
+    .filter((option) => option.value !== "all");
+
+  if (selectedSpecificTeams.length) {
+    const allOption = Array.from(els.missingHubTeamFilter.options).find((option) => option.value === "all");
+    if (allOption) allOption.selected = false;
+    return;
+  }
+
+  const allOption = Array.from(els.missingHubTeamFilter.options).find((option) => option.value === "all");
+  if (allOption) allOption.selected = true;
+}
+
+function updateMissingHubPickerLabels() {
+  const selectedAlbums = Array.from(els.missingHubAlbumFilter.selectedOptions)
+    .filter((option) => option.value !== "all");
+  const selectedTeams = getMissingHubTeamCodes();
+
+  els.missingHubAlbumPickerButton.textContent = selectedAlbums.length
+    ? `${selectedAlbums.length} álbum${selectedAlbums.length > 1 ? "s" : ""}`
+    : "Todos os álbuns";
+  els.missingHubTeamPickerButton.textContent = selectedTeams.length
+    ? `${selectedTeams.length} time${selectedTeams.length > 1 ? "s" : ""}`
+    : "Todos os times";
+}
+
+function getMissingFilterPickerSource(kind) {
+  if (kind === "album") {
+    const selectedValues = new Set(Array.from(els.missingHubAlbumFilter.selectedOptions).map((option) => option.value));
+    return {
+      title: "Selecionar álbuns",
+      values: state.albums.map((album) => ({ value: album.id, label: album.name })),
+      selectedValues
+    };
+  }
+
+  const selectedValues = new Set(Array.from(els.missingHubTeamFilter.selectedOptions).map((option) => option.value));
+  return {
+    title: "Selecionar times",
+    values: TEAMS.map((team) => ({ value: team.code, label: `${team.code} - ${team.name}` })),
+    selectedValues
+  };
+}
+
+function renderMissingFilterPickerOptions() {
+  const query = els.missingFilterPickerSearch.value.trim().toLowerCase();
+  els.missingFilterPickerOptions.textContent = "";
+
+  state.missingFilterPickerItems
+    .filter((item) => !query || item.label.toLowerCase().includes(query) || item.value.toLowerCase().includes(query))
+    .forEach((item) => {
+    const label = document.createElement("label");
+    label.className = "picker-option";
+
+    const checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.value = item.value;
+    checkbox.checked = state.missingFilterPickerSelectedValues.has(item.value);
+    checkbox.addEventListener("change", () => {
+      if (checkbox.checked) {
+        state.missingFilterPickerSelectedValues.add(item.value);
+      } else {
+        state.missingFilterPickerSelectedValues.delete(item.value);
+      }
+    });
+
+    const span = document.createElement("span");
+    span.textContent = item.label;
+
+    label.append(checkbox, span);
+    els.missingFilterPickerOptions.append(label);
+  });
+}
+
+function openMissingFilterPicker(kind) {
+  state.missingFilterPickerKind = kind;
+  const source = getMissingFilterPickerSource(kind);
+  state.missingFilterPickerItems = source.values;
+  state.missingFilterPickerSelectedValues = new Set(Array.from(source.selectedValues).filter((value) => value !== "all"));
+  els.missingFilterPickerTitle.textContent = source.title;
+  els.missingFilterPickerSearch.value = "";
+  renderMissingFilterPickerOptions();
+
+  els.missingFilterPickerModal.classList.remove("hidden");
+  els.missingFilterPickerSearch.focus({ preventScroll: true });
+}
+
+function closeMissingFilterPicker() {
+  state.missingFilterPickerKind = null;
+  state.missingFilterPickerItems = [];
+  state.missingFilterPickerSelectedValues = new Set();
+  els.missingFilterPickerModal.classList.add("hidden");
+  els.missingFilterPickerOptions.textContent = "";
+  els.missingFilterPickerSearch.value = "";
+}
+
+function selectAllMissingFilterPickerOptions() {
+  state.missingFilterPickerItems.forEach((item) => state.missingFilterPickerSelectedValues.add(item.value));
+  renderMissingFilterPickerOptions();
+}
+
+function clearMissingFilterPickerOptions() {
+  state.missingFilterPickerSelectedValues = new Set();
+  renderMissingFilterPickerOptions();
+}
+
+function applyMissingFilterPicker() {
+  const kind = state.missingFilterPickerKind;
+  const target = kind === "album" ? els.missingHubAlbumFilter : els.missingHubTeamFilter;
+
+  Array.from(target.options).forEach((option) => {
+    option.selected = state.missingFilterPickerSelectedValues.has(option.value);
+  });
+
+  if (kind === "album") {
+    normalizeMissingHubAlbumSelection();
+  } else {
+    normalizeMissingHubTeamSelection();
+  }
+
+  updateMissingHubPickerLabels();
+  closeMissingFilterPicker();
+  renderMissingHubScreen();
 }
 
 function groupItemsByTeam(items) {
@@ -2262,6 +2617,31 @@ function closeDuplicatesScreen() {
   loadAlbums();
 }
 
+async function openMissingHubScreen() {
+  state.missingHubActive = true;
+  state.activeAlbum = null;
+  state.missingHubSessionPicks = new Map();
+  setCompareMode(false);
+  els.comparePanel.classList.add("hidden");
+  discardMissingReview();
+  populateMissingHubFilters();
+  els.albumsScreen.classList.add("hidden");
+  els.stickersScreen.classList.add("hidden");
+  els.duplicatesScreen.classList.add("hidden");
+  els.missingHubScreen.classList.remove("hidden");
+  els.backButton.classList.remove("hidden");
+  await loadMissingPicks();
+}
+
+function closeMissingHubScreen() {
+  state.missingHubActive = false;
+  state.missingHubSessionPicks = new Map();
+  els.missingHubScreen.classList.add("hidden");
+  els.albumsScreen.classList.remove("hidden");
+  els.backButton.classList.add("hidden");
+  loadAlbums();
+}
+
 function createDuplicateControl(item, duplicateMap) {
   const quantity = duplicateMap.get(item.id)?.quantity || 0;
   const row = document.createElement("button");
@@ -2345,6 +2725,179 @@ function renderDuplicatesScreen() {
   });
 
   els.emptyDuplicates.classList.toggle("hidden", visibleItems.length > 0);
+}
+
+function buildMissingPicksText() {
+  const pickMap = getMissingPickMap();
+  const items = getDuplicateItems().filter((item) => (pickMap.get(item.id)?.quantity || 0) > 0);
+  const lines = [
+    "Figurinhas App",
+    "Figurinhas marcadas",
+    ""
+  ];
+
+  if (!items.length) {
+    lines.push("Nenhuma figurinha marcada.");
+    return lines.join("\n");
+  }
+
+  appendDuplicateItemLines(lines, items, pickMap);
+  return lines.join("\n").trim();
+}
+
+function buildVisibleMissingHubText() {
+  const aggregates = getMissingHubAggregates();
+  const quantityMap = new Map(aggregates.map((entry) => [entry.item.id, { quantity: entry.quantity }]));
+  const items = aggregates.map((entry) => entry.item);
+  const lines = [
+    "Figurinhas App",
+    "Faltantes",
+    ""
+  ];
+
+  if (!items.length) {
+    lines.push("Nenhuma figurinha faltando com esses filtros.");
+    return lines.join("\n");
+  }
+
+  appendDuplicateItemLines(lines, items, quantityMap);
+  return lines.join("\n").trim();
+}
+
+async function copyMissingPicks() {
+  const text = buildMissingPicksText();
+
+  if (navigator.clipboard) {
+    await navigator.clipboard.writeText(text);
+    savePulse();
+    return;
+  }
+
+  window.prompt("Copie as figurinhas marcadas:", text);
+}
+
+async function copyVisibleMissingHub() {
+  const text = buildVisibleMissingHubText();
+
+  if (navigator.clipboard) {
+    await navigator.clipboard.writeText(text);
+    savePulse();
+    return;
+  }
+
+  window.prompt("Copie as figurinhas faltantes:", text);
+}
+
+function renderMissingPickPanel() {
+  const pickMap = getMissingPickMap();
+  const items = getDuplicateItems().filter((item) => (pickMap.get(item.id)?.quantity || 0) > 0);
+
+  els.missingPickPanel.classList.toggle("hidden", !items.length);
+  els.missingPickResult.textContent = "";
+  if (!items.length) return;
+
+  const section = document.createElement("section");
+  section.className = "missing-pick-column";
+  const grouped = groupItemsByTeam(items);
+
+  grouped.forEach((teamItems, teamCode) => {
+    const group = document.createElement("div");
+    group.className = "compare-team missing-pick-team";
+    group.append(createTeamTitleElement(teamCode));
+
+    const list = document.createElement("div");
+    list.className = "missing-hub-list";
+    teamItems.forEach((item) => {
+      const quantity = pickMap.get(item.id)?.quantity || 0;
+      const pill = document.createElement("button");
+      pill.type = "button";
+      pill.className = "missing-hub-pill selected";
+      pill.setAttribute("aria-label", `Desmarcar ${item.label}`);
+
+      const label = document.createElement("span");
+      label.textContent = formatMissingShareNumber(item);
+      pill.append(label);
+
+      if (quantity > 1) {
+        const quantityLabel = document.createElement("strong");
+        quantityLabel.textContent = `${quantity}x`;
+        pill.append(quantityLabel);
+      }
+
+      pill.addEventListener("click", () => removeMissingPick(item));
+      list.append(pill);
+    });
+
+    group.append(list);
+    section.append(group);
+  });
+
+  els.missingPickResult.append(section);
+}
+
+function createMissingHubItemButton(entry) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "missing-hub-pill";
+  button.setAttribute("aria-label", `${entry.item.label}, faltando em ${entry.quantity} album`);
+
+  const label = document.createElement("span");
+  label.textContent = formatMissingShareNumber(entry.item);
+  button.append(label);
+
+  if (entry.quantity > 1) {
+    const quantity = document.createElement("strong");
+    quantity.textContent = `${entry.quantity}x`;
+    button.append(quantity);
+  }
+
+  button.addEventListener("click", () => addMissingPick(entry.item));
+  return button;
+}
+
+function renderMissingHubList(aggregates) {
+  els.missingHubResult.textContent = "";
+
+  const grouped = new Map();
+  aggregates.forEach((entry) => {
+    if (!grouped.has(entry.item.teamCode)) grouped.set(entry.item.teamCode, []);
+    grouped.get(entry.item.teamCode).push(entry);
+  });
+
+  grouped.forEach((teamEntries, teamCode) => {
+    const section = document.createElement("section");
+    section.className = "compare-team missing-hub-team";
+    section.append(createTeamTitleElement(teamCode));
+
+    const total = teamEntries.reduce((sum, entry) => sum + entry.quantity, 0);
+    const meta = document.createElement("p");
+    meta.className = "compare-count missing-hub-team-meta";
+    meta.textContent = total === 1 ? "1 faltante" : `${total} faltantes`;
+    section.append(meta);
+
+    const list = document.createElement("div");
+    list.className = "missing-hub-list";
+    teamEntries.forEach((entry) => list.append(createMissingHubItemButton(entry)));
+    section.append(list);
+    els.missingHubResult.append(section);
+  });
+}
+
+function renderMissingHubScreen() {
+  if (!state.missingHubActive) return;
+
+  updateMissingHubPickerLabels();
+  updateMissingHubClearButton();
+  renderMissingPickPanel();
+
+  const aggregates = getMissingHubAggregates();
+  const individualCount = aggregates.length;
+  const totalCount = aggregates.reduce((sum, entry) => sum + entry.quantity, 0);
+  const individualLabel = individualCount === 1 ? "1 individual" : `${individualCount} individuais`;
+  els.missingHubSummary.textContent = `${individualLabel} - ${totalCount} no total`;
+
+  renderMissingHubList(aggregates);
+  els.emptyMissingHub.classList.toggle("hidden", aggregates.length > 0);
 }
 
 function renderStickerScreen() {
@@ -2750,6 +3303,11 @@ function registerEvents() {
   els.finishReorderButton.addEventListener("click", () => setReorderMode(false));
 
   els.backButton.addEventListener("click", () => {
+    if (state.missingHubActive) {
+      closeMissingHubScreen();
+      return;
+    }
+
     if (state.duplicatesActive) {
       closeDuplicatesScreen();
       return;
@@ -2758,6 +3316,7 @@ function registerEvents() {
     closeAlbum();
   });
   els.duplicatesButton.addEventListener("click", openDuplicatesScreen);
+  els.missingHubButton.addEventListener("click", openMissingHubScreen);
   els.shareCollectionButton.addEventListener("click", async () => {
     try {
       await shareCollectionText();
@@ -2819,6 +3378,56 @@ function registerEvents() {
   [els.duplicateSearchInput, els.duplicateStatusFilter, els.duplicateTypeFilter].forEach((el) => {
     el.addEventListener("input", renderDuplicatesScreen);
     el.addEventListener("change", renderDuplicatesScreen);
+  });
+
+  els.missingHubClearFilterButton.addEventListener("click", () => {
+    Array.from(els.missingHubAlbumFilter.options).forEach((option) => {
+      option.selected = option.value === "all";
+    });
+    Array.from(els.missingHubTeamFilter.options).forEach((option) => {
+      option.selected = option.value === "all";
+    });
+    els.missingHubTypeFilter.value = "all";
+    renderMissingHubScreen();
+  });
+  els.missingHubFilterToggle.addEventListener("click", () => {
+    els.missingHubFilterPanel.classList.toggle("hidden");
+  });
+  els.missingHubAlbumPickerButton.addEventListener("click", () => openMissingFilterPicker("album"));
+  els.missingHubTeamPickerButton.addEventListener("click", () => openMissingFilterPicker("team"));
+  els.applyMissingFilterPickerButton.addEventListener("click", applyMissingFilterPicker);
+  els.cancelMissingFilterPickerButton.addEventListener("click", closeMissingFilterPicker);
+  els.selectAllMissingFilterPickerButton.addEventListener("click", selectAllMissingFilterPickerOptions);
+  els.clearMissingFilterPickerButton.addEventListener("click", clearMissingFilterPickerOptions);
+  els.missingFilterPickerSearch.addEventListener("input", renderMissingFilterPickerOptions);
+  els.clearMissingPicksButton.addEventListener("click", clearMissingPicks);
+  els.copyMissingPicksButton.addEventListener("click", async () => {
+    try {
+      await copyMissingPicks();
+    } catch {
+      window.alert("Não foi possível copiar as figurinhas marcadas agora.");
+    }
+  });
+  els.copyVisibleMissingButton.addEventListener("click", async () => {
+    try {
+      await copyVisibleMissingHub();
+    } catch {
+      window.alert("Não foi possível copiar as faltantes agora.");
+    }
+  });
+
+  els.missingHubAlbumFilter.addEventListener("input", () => {
+    normalizeMissingHubAlbumSelection();
+    renderMissingHubScreen();
+  });
+  els.missingHubAlbumFilter.addEventListener("change", () => {
+    normalizeMissingHubAlbumSelection();
+    renderMissingHubScreen();
+  });
+
+  [els.missingHubTeamFilter, els.missingHubTypeFilter].forEach((el) => {
+    el.addEventListener("input", renderMissingHubScreen);
+    el.addEventListener("change", renderMissingHubScreen);
   });
 
   window.addEventListener("beforeinstallprompt", (event) => {
