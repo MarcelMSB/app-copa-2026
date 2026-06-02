@@ -127,6 +127,7 @@
           <section class="mode-panel duplicates-filter-shell" aria-label="Filtros de faltantes">
             <button class="filter-toggle" id="missingHubFilterToggle" type="button">Filtros</button>
             <button class="ghost-button neutral-button" id="copyVisibleMissingButton" type="button">Copiar faltantes</button>
+            <button class="ghost-button neutral-button" id="missingHubListCheckButton" type="button">Conferir lista</button>
             <button class="ghost-button clear-filter-button hidden" id="missingHubClearFilterButton" type="button">Limpar</button>
             <div class="filter-panel missing-hub-filters hidden" id="missingHubFilterPanel">
               <label>
@@ -153,6 +154,17 @@
                 </select>
               </label>
             </div>
+          </section>
+
+          <section class="compare-panel missing-hub-list-check-panel hidden" id="missingHubListCheckPanel" aria-live="polite">
+            <div class="compare-panel-heading">
+              <div>
+                <p class="panel-kicker">Conferência</p>
+                <h2>Faltantes da lista</h2>
+              </div>
+              <button class="ghost-button neutral-button" id="closeMissingHubListCheckButton" type="button">Fechar</button>
+            </div>
+            <div class="compare-result missing-hub-list-check-result" id="missingHubListCheckResult"></div>
           </section>
 
           <section class="compare-panel missing-pick-panel hidden" id="missingPickPanel" aria-live="polite">

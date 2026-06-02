@@ -1994,3 +1994,6 @@ select:focus {
     min-height: 84px;
   }
 }
+.missing-hub-list-check-result {
+  grid-template-columns: 1fr;
+}

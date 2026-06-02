@@ -329,6 +329,10 @@ const els = {
   missingPickResult: document.querySelector("#missingPickResult"),
   clearMissingPicksButton: document.querySelector("#clearMissingPicksButton"),
   copyMissingPicksButton: document.querySelector("#copyMissingPicksButton"),
+  missingHubListCheckButton: document.querySelector("#missingHubListCheckButton"),
+  missingHubListCheckPanel: document.querySelector("#missingHubListCheckPanel"),
+  missingHubListCheckResult: document.querySelector("#missingHubListCheckResult"),
+  closeMissingHubListCheckButton: document.querySelector("#closeMissingHubListCheckButton"),
   missingHubResult: document.querySelector("#missingHubResult"),
   emptyMissingHub: document.querySelector("#emptyMissingHub"),
   duplicateFilterToggle: document.querySelector("#duplicateFilterToggle"),
@@ -1904,7 +1908,45 @@ function renderTextCheckResult(output, album, items) {
     window.prompt("Copie o resultado:", resultText);
   });
 
-  output.append(count, result, copyButton);
+  const actions = document.createElement("div");
+  actions.className = "missing-review-actions";
+  actions.append(copyButton);
+
+  if (items.length) {
+    const insertButton = document.createElement("button");
+    insertButton.type = "button";
+    insertButton.className = "primary-button";
+    insertButton.textContent = "Inserir no álbum";
+    insertButton.addEventListener("click", async () => {
+      insertButton.disabled = true;
+      await insertItemsIntoAlbum(album, items);
+      output.textContent = "";
+      const done = document.createElement("p");
+      done.className = "compare-count";
+      done.textContent = `${items.length} figurinhas inseridas no álbum.`;
+      output.append(done);
+    });
+    actions.append(insertButton);
+  }
+
+  output.append(count, result, actions);
+}
+
+async function insertItemsIntoAlbum(album, items) {
+  const stickers = await getStickersForAlbum(album.id);
+  const stickerMap = getStickerMapFromList(stickers);
+
+  for (const item of items) {
+    const existing = stickerMap.get(item.id);
+    await putItem(STICKER_STORE, createStickerRecordForAlbum(album, item, "owned", existing?.notes || "", existing));
+  }
+
+  state.allStickers = await getAll(STICKER_STORE);
+  if (state.activeAlbum?.id === album.id) {
+    await loadStickers(album.id);
+  }
+  await loadAlbums();
+  savePulse();
 }
 
 function renderTextCheckPanel(album) {
@@ -2643,6 +2685,7 @@ async function openMissingHubScreen() {
 }
 
 function closeMissingHubScreen() {
+  closeMissingHubListCheck();
   state.missingHubActive = false;
   state.missingHubSessionPicks = new Map();
   els.missingHubScreen.classList.add("hidden");
@@ -2773,6 +2816,257 @@ function buildVisibleMissingHubText() {
   return lines.join("\n").trim();
 }
 
+function buildMissingHubListCheckText(entries) {
+  const quantityMap = new Map(entries.map((entry) => [entry.item.id, { quantity: entry.quantity }]));
+  const items = entries.map((entry) => entry.item);
+  const lines = [
+    "Figurinhas App",
+    "Faltantes da lista",
+    ""
+  ];
+
+  if (!items.length) {
+    lines.push("Nenhuma figurinha da lista está faltando.");
+    return lines.join("\n");
+  }
+
+  appendDuplicateItemLines(lines, items, quantityMap);
+  return lines.join("\n").trim();
+}
+
+async function addMissingHubEntriesToPicks(entries) {
+  if (!entries.length) {
+    return;
+  }
+
+  const pickMap = getMissingPickMap();
+
+  for (const entry of entries) {
+    const currentQuantity = pickMap.get(entry.item.id)?.quantity || 0;
+    const sessionQuantity = state.missingHubSessionPicks.get(entry.item.id) || 0;
+    const nextQuantity = currentQuantity + entry.quantity;
+
+    state.missingHubSessionPicks.set(entry.item.id, sessionQuantity + entry.quantity);
+    await putItem(MISSING_PICK_STORE, createMissingPickRecord(entry.item, nextQuantity));
+    pickMap.set(entry.item.id, { item: entry.item, quantity: nextQuantity });
+  }
+
+  await loadMissingPicks();
+  savePulse();
+}
+
+function renderMissingHubListCheckResult(output, entries, parsedItemIds) {
+  output.textContent = "";
+
+  const resultText = buildMissingHubListCheckText(entries);
+  const count = document.createElement("p");
+  count.className = "compare-count";
+  count.textContent = entries.length
+    ? `${entries.length} figurinha(s) da lista ainda faltam na seleção atual.`
+    : "Nenhuma figurinha da lista está faltando na seleção atual.";
+
+  const result = document.createElement("pre");
+  result.className = "text-check-result-text";
+  result.textContent = resultText;
+
+  const actions = document.createElement("div");
+  actions.className = "missing-review-actions";
+
+  const copyButton = document.createElement("button");
+  copyButton.className = "primary-button";
+  copyButton.type = "button";
+  copyButton.textContent = "Copiar resultado";
+  copyButton.addEventListener("click", () => copyText(resultText, copyButton));
+  actions.append(copyButton);
+
+  if (entries.length) {
+    const addButton = document.createElement("button");
+    addButton.className = "ghost-button neutral-button";
+    addButton.type = "button";
+    addButton.textContent = "Adicionar marcadas";
+    addButton.addEventListener("click", async () => {
+      addButton.disabled = true;
+      await addMissingHubEntriesToPicks(entries);
+      const refreshedEntries = getMissingHubAggregates().filter((entry) => parsedItemIds.has(entry.item.id));
+      renderMissingHubListCheckResult(output, refreshedEntries, parsedItemIds);
+    });
+    actions.append(addButton);
+  }
+
+  output.append(count, result, actions);
+}
+
+function renderMissingHubListCheckPanel() {
+  if (!els.missingHubListCheckResult) {
+    return;
+  }
+
+  els.missingHubListCheckResult.textContent = "";
+
+  const wrapper = document.createElement("section");
+  wrapper.className = "compare-column text-check-column";
+
+  const title = document.createElement("h3");
+  title.textContent = "Cole a lista para conferir";
+
+  const input = document.createElement("textarea");
+  input.className = "text-check-input";
+  input.rows = 12;
+  input.placeholder = "MEX: 2, 5, 6\nBRA: 1, 12\nCC: 8, 9";
+
+  const actions = document.createElement("div");
+  actions.className = "missing-review-actions";
+
+  const checkButton = document.createElement("button");
+  checkButton.className = "primary-button";
+  checkButton.type = "button";
+  checkButton.textContent = "Verificar faltantes";
+
+  const cancelButton = document.createElement("button");
+  cancelButton.className = "ghost-button neutral-button";
+  cancelButton.type = "button";
+  cancelButton.textContent = "Cancelar";
+
+  const output = document.createElement("div");
+  output.className = "text-check-output";
+
+  checkButton.addEventListener("click", () => {
+    const parsedItemIds = parseDuplicatePastedStickerList(input.value);
+    const entries = getMissingHubAggregates().filter((entry) => parsedItemIds.has(entry.item.id));
+    renderMissingHubListCheckResult(output, entries, parsedItemIds);
+  });
+
+  cancelButton.addEventListener("click", closeMissingHubListCheck);
+
+  actions.append(checkButton, cancelButton);
+  wrapper.append(title, input, actions, output);
+  els.missingHubListCheckResult.append(wrapper);
+}
+
+function positionMissingHubListCheckPanel() {
+  const panel = els.missingHubListCheckPanel;
+  if (!panel?.parentElement) {
+    return;
+  }
+
+  const trigger = els.missingHubListCheckButton;
+  let insertionPoint = trigger?.parentElement || null;
+
+  while (
+    insertionPoint?.parentElement &&
+    insertionPoint.parentElement !== document.body &&
+    !insertionPoint.contains(panel)
+  ) {
+    const buttons = Array.from(insertionPoint.querySelectorAll("button"));
+    const hasTrigger = insertionPoint.contains(trigger);
+    const hasFilterButton = buttons.some((button) => button.textContent?.trim().toLowerCase() === "filtros");
+    const hasCopyButton = buttons.some((button) => button.textContent?.trim().toLowerCase().includes("copiar faltantes"));
+
+    if (hasTrigger && hasFilterButton && hasCopyButton) {
+      break;
+    }
+
+    insertionPoint = insertionPoint.parentElement;
+  }
+
+  while (
+    insertionPoint &&
+    insertionPoint !== document.body &&
+    (insertionPoint.contains(panel) || insertionPoint === panel)
+  ) {
+    insertionPoint = insertionPoint.parentElement;
+  }
+
+  if (insertionPoint?.parentElement && insertionPoint.nextElementSibling !== panel) {
+    insertionPoint.insertAdjacentElement("afterend", panel);
+    return;
+  }
+
+  const screen = panel.closest("main, .screen, .app-view, body") || document.body;
+  const markedHeading = Array.from(screen.querySelectorAll("h1, h2, h3, h4, p, strong, span"))
+    .find((element) => element.textContent?.trim().toLowerCase() === "figurinhas marcadas");
+  const markedPanel = markedHeading?.closest("section, article, .card, .panel, .compare-panel, .missing-hub-card");
+
+  if (markedPanel && markedPanel !== panel && markedPanel.parentElement) {
+    markedPanel.parentElement.insertBefore(panel, markedPanel);
+    return;
+  }
+
+  const controls = els.missingHubListCheckButton?.closest("section, article, .card, .panel, .filters-card, .missing-hub-controls, .compare-panel");
+  const directControls = controls && controls.parentElement === panel.parentElement ? controls : null;
+
+  if (directControls && directControls.nextElementSibling !== panel) {
+    panel.parentElement.insertBefore(panel, directControls.nextElementSibling);
+    return;
+  }
+
+  const anchor = screen.querySelector(
+    "#missingPicksPanel, #missingHubPicksPanel, .missing-picks-panel, .missing-hub-picks-panel, .missing-hub-marked-panel, #missingHubPanel, .missing-hub-panel"
+  );
+
+  if (anchor && anchor !== panel && anchor.parentElement) {
+    anchor.parentElement.insertBefore(panel, anchor);
+  }
+}
+
+function openMissingHubListCheck() {
+  positionMissingHubListCheckPanel();
+  renderMissingHubListCheckPanel();
+  positionMissingHubListCheckPanel();
+  els.missingHubListCheckPanel.classList.remove("hidden");
+  setTimeout(positionMissingHubListCheckPanel, 0);
+  els.missingHubListCheckPanel.scrollIntoView({ behavior: "smooth", block: "start" });
+  els.missingHubListCheckPanel.querySelector("textarea")?.focus();
+}
+
+function closeMissingHubListCheck() {
+  els.missingHubListCheckPanel?.classList.add("hidden");
+  if (els.missingHubListCheckResult) {
+    els.missingHubListCheckResult.textContent = "";
+  }
+}
+
+function findMissingHubActionsBlock() {
+  const trigger = els.missingHubListCheckButton;
+  const copyButton = els.copyVisibleMissingButton || document.querySelector("#copyVisibleMissingButton");
+
+  if (!trigger) {
+    return null;
+  }
+
+  const candidates = Array.from(document.querySelectorAll("section, article, div, form"))
+    .filter((candidate) => {
+      if (!candidate.contains(trigger) || candidate === document.body) {
+        return false;
+      }
+
+      const buttons = Array.from(candidate.querySelectorAll("button"));
+      const hasCopyButton = copyButton
+        ? candidate.contains(copyButton)
+        : buttons.some((button) => button.textContent?.trim().toLowerCase().includes("copiar faltantes"));
+      const hasFiltersButton = buttons.some((button) => {
+        const label = `${button.textContent || ""} ${button.getAttribute("aria-label") || ""}`.toLowerCase();
+        return label.includes("filtros");
+      });
+
+      return hasCopyButton && hasFiltersButton;
+    })
+    .sort((a, b) => a.querySelectorAll("*").length - b.querySelectorAll("*").length);
+
+  return candidates[0] || trigger.parentElement;
+}
+
+function positionMissingHubListCheckPanel() {
+  const panel = els.missingHubListCheckPanel;
+  const actionsBlock = findMissingHubActionsBlock();
+
+  if (!panel || !actionsBlock || panel.parentElement === actionsBlock) {
+    return;
+  }
+
+  actionsBlock.appendChild(panel);
+}
+
 async function copyMissingPicks() {
   const text = buildMissingPicksText();
 
@@ -2890,6 +3184,118 @@ function renderMissingHubList(aggregates) {
     section.append(list);
     els.missingHubResult.append(section);
   });
+}
+
+function renderMissingHubListCheckResult(output, entries) {
+  output.textContent = "";
+
+  const resultText = buildMissingHubListCheckText(entries);
+  const count = document.createElement("p");
+  count.className = "compare-count";
+  count.textContent = entries.length
+    ? `${entries.length} figurinhas da lista estão faltando.`
+    : "Nenhuma figurinha da lista está faltando.";
+
+  const result = document.createElement("pre");
+  result.className = "text-check-result-text";
+  result.textContent = resultText;
+
+  const actions = document.createElement("div");
+  actions.className = "missing-review-actions";
+
+  const copyButton = document.createElement("button");
+  copyButton.type = "button";
+  copyButton.className = "ghost-button neutral-button";
+  copyButton.textContent = "Copiar resultado";
+  copyButton.addEventListener("click", async () => {
+    if (navigator.clipboard) {
+      await navigator.clipboard.writeText(resultText);
+      savePulse();
+      return;
+    }
+
+    window.prompt("Copie o resultado:", resultText);
+  });
+  actions.append(copyButton);
+
+  if (entries.length) {
+    const addButton = document.createElement("button");
+    addButton.type = "button";
+    addButton.className = "primary-button";
+    addButton.textContent = "Inserir marcadas";
+    addButton.addEventListener("click", async () => {
+      addButton.disabled = true;
+      for (const entry of entries) {
+        await addMissingPick(entry.item);
+      }
+      output.textContent = "";
+      const done = document.createElement("p");
+      done.className = "compare-count";
+      done.textContent = `${entries.length} figurinhas adicionadas às marcadas.`;
+      output.append(done);
+    });
+    actions.append(addButton);
+  }
+
+  output.append(count, result, actions);
+}
+
+function renderMissingHubListCheckPanel() {
+  els.missingHubListCheckResult.textContent = "";
+
+  const section = document.createElement("section");
+  section.className = "compare-column text-check-column";
+
+  const heading = document.createElement("h3");
+  heading.textContent = "Cole a lista para conferir";
+  section.append(heading);
+
+  const textarea = document.createElement("textarea");
+  textarea.className = "text-check-input";
+  textarea.rows = 10;
+  textarea.placeholder = "MEX: 2, 5, 6\nBRA 🇧🇷: 1, 15\nCC 🥤: 8, 9";
+  section.append(textarea);
+
+  const actions = document.createElement("div");
+  actions.className = "missing-review-actions";
+
+  const checkButton = document.createElement("button");
+  checkButton.type = "button";
+  checkButton.className = "primary-button";
+  checkButton.textContent = "Verificar lista";
+
+  const cancelButton = document.createElement("button");
+  cancelButton.type = "button";
+  cancelButton.className = "ghost-button neutral-button";
+  cancelButton.textContent = "Cancelar";
+  cancelButton.addEventListener("click", closeMissingHubListCheck);
+
+  actions.append(checkButton, cancelButton);
+  section.append(actions);
+
+  const output = document.createElement("div");
+  output.className = "text-check-output";
+  section.append(output);
+
+  checkButton.addEventListener("click", () => {
+    const parsedItemIds = parseDuplicatePastedStickerList(textarea.value);
+    const entries = getMissingHubAggregates().filter((entry) => parsedItemIds.has(entry.item.id));
+    renderMissingHubListCheckResult(output, entries);
+  });
+
+  els.missingHubListCheckResult.append(section);
+}
+
+function openMissingHubListCheck() {
+  renderMissingHubListCheckPanel();
+  els.missingHubListCheckPanel.classList.remove("hidden");
+  els.missingHubListCheckPanel.scrollIntoView({ behavior: "smooth", block: "start" });
+  els.missingHubListCheckResult.querySelector(".text-check-input")?.focus({ preventScroll: true });
+}
+
+function closeMissingHubListCheck() {
+  els.missingHubListCheckPanel.classList.add("hidden");
+  els.missingHubListCheckResult.textContent = "";
 }
 
 function renderMissingHubScreen() {
@@ -3552,5 +3958,8 @@ async function init() {
   await loadAlbums();
   await registerServiceWorker();
 }
+
+els.missingHubListCheckButton?.addEventListener("click", openMissingHubListCheck);
+els.closeMissingHubListCheckButton?.addEventListener("click", closeMissingHubListCheck);
 
 init();
