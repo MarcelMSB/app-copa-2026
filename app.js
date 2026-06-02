@@ -213,6 +213,7 @@ const ITEMS_BY_TEAM = new Map(TEAMS.map((team) => [
   team.code,
   COLLECTION_ITEMS.filter((item) => item.teamCode === team.code)
 ]));
+const TEAM_SORT_INDEX = new Map(TEAMS.map((team, index) => [team.code, index]));
 
 applySavedTheme();
 
@@ -1390,6 +1391,14 @@ function groupItemsByTeam(items) {
   });
 
   return map;
+}
+
+function getSortedTeamGroups(grouped) {
+  return Array.from(grouped.entries()).sort(([teamCodeA], [teamCodeB]) => {
+    const orderA = TEAM_SORT_INDEX.get(teamCodeA) ?? Number.MAX_SAFE_INTEGER;
+    const orderB = TEAM_SORT_INDEX.get(teamCodeB) ?? Number.MAX_SAFE_INTEGER;
+    return orderA - orderB || teamCodeA.localeCompare(teamCodeB);
+  });
 }
 
 function groupItemsByGroup(items) {
@@ -2800,7 +2809,7 @@ function renderMissingPickPanel() {
   section.className = "missing-pick-column";
   const grouped = groupItemsByTeam(items);
 
-  grouped.forEach((teamItems, teamCode) => {
+  getSortedTeamGroups(grouped).forEach(([teamCode, teamItems]) => {
     const group = document.createElement("div");
     group.className = "compare-team missing-pick-team";
     group.append(createTeamTitleElement(teamCode));
@@ -2864,7 +2873,7 @@ function renderMissingHubList(aggregates) {
     grouped.get(entry.item.teamCode).push(entry);
   });
 
-  grouped.forEach((teamEntries, teamCode) => {
+  getSortedTeamGroups(grouped).forEach(([teamCode, teamEntries]) => {
     const section = document.createElement("section");
     section.className = "compare-team missing-hub-team";
     section.append(createTeamTitleElement(teamCode));
