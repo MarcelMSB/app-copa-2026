@@ -1997,3 +1997,253 @@ select:focus {
 .missing-hub-list-check-result {
   grid-template-columns: 1fr;
 }
+.scanner-entry-button {
+  width: auto;
+}
+
+.scanner-panel .scanner-cloud-config {
+  display: none;
+}
+
+.app-settings-panel {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: rgba(7, 18, 15, 0.58);
+}
+
+.app-settings-panel.hidden {
+  display: none;
+}
+
+.app-settings-card {
+  width: min(100%, 460px);
+  display: grid;
+  gap: 1rem;
+  padding: 1rem;
+  border: 1px solid var(--border-color, rgba(16, 45, 38, 0.14));
+  border-radius: 8px;
+  background: var(--surface-color, #ffffff);
+  color: var(--text-color, #10231f);
+  box-shadow: 0 20px 60px rgba(2, 12, 9, 0.32);
+}
+
+.app-settings-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.app-settings-heading h2 {
+  margin: 0;
+}
+
+.app-settings-cloud-config {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.app-settings-cloud-config label {
+  font-weight: 800;
+}
+
+.app-settings-cloud-config p {
+  margin: 0;
+  color: var(--muted-color, #5d716a);
+  font-size: 0.88rem;
+  line-height: 1.35;
+}
+
+.scanner-panel {
+  display: grid;
+  gap: 1rem;
+  margin-top: 0.85rem;
+  padding: 1rem;
+  border: 1px solid var(--border-color, rgba(16, 45, 38, 0.14));
+  border-radius: 8px;
+  background: var(--surface-color, #ffffff);
+}
+
+.scanner-panel.hidden,
+.scanner-camera-view.hidden,
+.scanner-preview.hidden,
+.scanner-result.hidden {
+  display: none;
+}
+
+.scanner-heading,
+.scanner-result-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.scanner-heading h2,
+.scanner-result-heading h3 {
+  margin: 0;
+}
+
+.scanner-actions {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.65rem;
+}
+
+.scanner-camera-view {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.scanner-video {
+  display: block;
+  width: 100%;
+  max-height: 430px;
+  border: 1px solid var(--border-color, rgba(16, 45, 38, 0.14));
+  border-radius: 8px;
+  background: #0f1715;
+  object-fit: contain;
+}
+
+.scanner-camera-actions {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.65rem;
+}
+
+.scanner-cloud-config {
+  display: grid;
+  gap: 0.55rem;
+  padding: 0.75rem;
+  border: 1px solid var(--border-color, rgba(16, 45, 38, 0.14));
+  border-radius: 8px;
+  background: var(--app-bg, #f6faf7);
+}
+
+.scanner-cloud-config label {
+  font-weight: 800;
+}
+
+.scanner-cloud-config p {
+  margin: 0;
+  color: var(--muted-color, #5d716a);
+  font-size: 0.88rem;
+  line-height: 1.35;
+}
+
+.scanner-key-row {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.5rem;
+}
+
+.scanner-google-key-input {
+  min-width: 0;
+}
+
+.scanner-preview {
+  overflow: hidden;
+  border: 1px solid var(--border-color, rgba(16, 45, 38, 0.14));
+  border-radius: 8px;
+  background: #0f1715;
+}
+
+.scanner-canvas {
+  display: block;
+  width: 100%;
+  max-height: 340px;
+  object-fit: contain;
+}
+
+.scanner-status {
+  margin: 0;
+  color: var(--muted-color, #5d716a);
+  font-weight: 700;
+}
+
+.scanner-result {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.scanner-copy-button {
+  width: 100%;
+}
+
+.scanner-result-text {
+  min-height: 5rem;
+  margin: 0;
+  padding: 0.85rem;
+  overflow: auto;
+  border: 1px solid var(--border-color, rgba(16, 45, 38, 0.14));
+  border-radius: 8px;
+  background: var(--app-bg, #f6faf7);
+  color: var(--text-color, #10231f);
+  font: inherit;
+  font-weight: 800;
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+
+html[data-theme="dark"] .scanner-panel,
+body[data-theme="dark"] .scanner-panel,
+body.dark .scanner-panel,
+.dark .scanner-panel,
+html[data-theme="dark"] .app-settings-card,
+body[data-theme="dark"] .app-settings-card,
+body.dark .app-settings-card,
+.dark .app-settings-card {
+  border-color: rgba(216, 238, 230, 0.16);
+  background: #15241f;
+  color: #eef8f3;
+}
+
+html[data-theme="dark"] .scanner-preview,
+body[data-theme="dark"] .scanner-preview,
+body.dark .scanner-preview,
+.dark .scanner-preview,
+html[data-theme="dark"] .scanner-cloud-config,
+body[data-theme="dark"] .scanner-cloud-config,
+body.dark .scanner-cloud-config,
+.dark .scanner-cloud-config,
+html[data-theme="dark"] .scanner-result-text,
+body[data-theme="dark"] .scanner-result-text,
+body.dark .scanner-result-text,
+.dark .scanner-result-text {
+  border-color: rgba(216, 238, 230, 0.16);
+  background: #0c1512;
+  color: #f4fbf8;
+}
+
+html[data-theme="dark"] .scanner-status,
+body[data-theme="dark"] .scanner-status,
+body.dark .scanner-status,
+.dark .scanner-status,
+html[data-theme="dark"] .scanner-cloud-config p,
+body[data-theme="dark"] .scanner-cloud-config p,
+body.dark .scanner-cloud-config p,
+.dark .scanner-cloud-config p,
+html[data-theme="dark"] .app-settings-cloud-config p,
+body[data-theme="dark"] .app-settings-cloud-config p,
+body.dark .app-settings-cloud-config p,
+.dark .app-settings-cloud-config p {
+  color: #b9cbc4;
+}
+
+@media (min-width: 520px) {
+  .scanner-actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .scanner-camera-actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .scanner-key-row {
+    grid-template-columns: minmax(0, 1fr) auto auto;
+  }
+}
