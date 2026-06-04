@@ -6,6 +6,7 @@ const DUPLICATE_STORE = "duplicates";
 const MISSING_PICK_STORE = "missingPicks";
 const VIEW_MODE_STORAGE_KEY = "copa-2026-view-mode";
 const THEME_STORAGE_KEY = "copa-2026-theme";
+const HOME_ACTION_VISIBILITY_STORAGE_KEY = "copa-2026-home-actions";
 const DEFAULT_VIEW_MODE = "group";
 const STICKER_TYPE_LABELS = {
   standard: "Figurinha comum",
@@ -3629,6 +3630,8 @@ function setAlbumFormVisible(visible) {
   } else {
     resetAlbumForm();
   }
+
+  updateHomeCreatePanelVisibility();
 }
 
 function updateBackButton(visible) {
@@ -4019,6 +4022,15 @@ let advancedOcrLoaderPromise = null;
 let advancedOcrEnginePromise = null;
 let scannerCameraStream = null;
 const GOOGLE_VISION_API_KEY_STORAGE_KEY = "copa2026GoogleVisionApiKey";
+const HOME_ACTIONS = [
+  { id: "showAlbumFormButton", label: "Adicionar álbum" },
+  { id: "importAlbumButton", label: "Importar" },
+  { id: "duplicatesButton", label: "Repetidas" },
+  { id: "missingHubButton", label: "Faltantes" },
+  { id: "compareModeButton", label: "Comparar álbuns" },
+  { id: "stickerScannerButton", label: "Digitalizar figurinha" }
+];
+const homeActionSlots = new Map();
 
 function loadTesseractClient() {
   if (window.Tesseract) {
@@ -4338,11 +4350,19 @@ function createAppSettingsPanel() {
         <p>Use uma chave restrita ao domínio do app. Sem chave, a digitalização usa apenas OCR local.</p>
         <p class="app-settings-status"></p>
       </div>
+      <div class="app-settings-actions-config">
+        <div>
+          <h3>Botões visíveis</h3>
+          <p>Os botões desmarcados ficam dentro de Mais opções.</p>
+        </div>
+        <div class="home-action-toggle-list"></div>
+      </div>
     </div>
   `;
 
   const input = panel.querySelector(".scanner-google-key-input");
   const status = panel.querySelector(".app-settings-status");
+  renderHomeActionSettings(panel);
   input.value = getGoogleVisionApiKey();
   status.textContent = input.value ? "Google Vision configurado neste aparelho." : "Google Vision não configurado.";
 
@@ -4377,12 +4397,170 @@ function openAppSettingsPanel() {
 
   input.value = getGoogleVisionApiKey();
   status.textContent = input.value ? "Google Vision configurado neste aparelho." : "Google Vision não configurado.";
+  renderHomeActionSettings(panel);
   panel.classList.remove("hidden");
   input.focus();
 }
 
 function closeAppSettingsPanel() {
   document.querySelector("#appSettingsPanel")?.classList.add("hidden");
+}
+
+function getVisibleHomeActionIds() {
+  try {
+    const saved = JSON.parse(window.localStorage.getItem(HOME_ACTION_VISIBILITY_STORAGE_KEY) || "null");
+    if (Array.isArray(saved)) {
+      return new Set(saved.filter((id) => HOME_ACTIONS.some((action) => action.id === id)));
+    }
+  } catch (error) {
+    console.warn("Nao foi possivel ler a configuracao dos botoes.", error);
+  }
+
+  return new Set(HOME_ACTIONS.map((action) => action.id));
+}
+
+function saveVisibleHomeActionIds(ids) {
+  try {
+    window.localStorage.setItem(HOME_ACTION_VISIBILITY_STORAGE_KEY, JSON.stringify(Array.from(ids)));
+  } catch (error) {
+    console.warn("Nao foi possivel salvar a configuracao dos botoes.", error);
+  }
+}
+
+function initHomeActionOrganizer() {
+  ensureHomeActionSlots();
+  ensureHomeMoreOptionsUi();
+  applyHomeActionVisibility();
+}
+
+function ensureHomeActionSlots() {
+  HOME_ACTIONS.forEach((action) => {
+    if (homeActionSlots.has(action.id)) {
+      return;
+    }
+
+    const button = document.querySelector(`#${action.id}`);
+    if (!button?.parentElement) {
+      return;
+    }
+
+    const slot = document.createComment(`home-action:${action.id}`);
+    button.parentElement.insertBefore(slot, button.nextSibling);
+    homeActionSlots.set(action.id, slot);
+  });
+}
+
+function ensureHomeMoreOptionsUi() {
+  if (document.querySelector("#homeMoreOptionsButton")) {
+    return;
+  }
+
+  const toolbar = document.querySelector(".album-toolbar");
+  if (!toolbar) {
+    return;
+  }
+
+  const button = document.createElement("button");
+  button.id = "homeMoreOptionsButton";
+  button.className = "ghost-button neutral-button home-more-options-button hidden";
+  button.type = "button";
+  button.textContent = "Mais opções";
+  button.addEventListener("click", () => {
+    document.querySelector("#homeMoreOptionsPanel")?.classList.toggle("hidden");
+  });
+
+  const panel = document.createElement("div");
+  panel.id = "homeMoreOptionsPanel";
+  panel.className = "home-more-options-panel hidden";
+  panel.addEventListener("click", (event) => {
+    if (event.target.closest("button")) {
+      panel.classList.add("hidden");
+    }
+  });
+
+  toolbar.append(button, panel);
+}
+
+function applyHomeActionVisibility() {
+  ensureHomeActionSlots();
+  ensureHomeMoreOptionsUi();
+
+  const visibleIds = getVisibleHomeActionIds();
+  const moreButton = document.querySelector("#homeMoreOptionsButton");
+  const morePanel = document.querySelector("#homeMoreOptionsPanel");
+
+  if (!moreButton || !morePanel) {
+    return;
+  }
+
+  let hiddenCount = 0;
+  HOME_ACTIONS.forEach((action) => {
+    const button = document.querySelector(`#${action.id}`);
+    const slot = homeActionSlots.get(action.id);
+
+    if (!button || !slot) {
+      return;
+    }
+
+    if (visibleIds.has(action.id)) {
+      slot.parentNode?.insertBefore(button, slot);
+    } else {
+      hiddenCount += 1;
+      morePanel.append(button);
+    }
+  });
+
+  moreButton.classList.toggle("hidden", hiddenCount === 0);
+  morePanel.classList.toggle("hidden", hiddenCount === 0 || morePanel.classList.contains("hidden"));
+  updateHomeCreatePanelVisibility(visibleIds);
+}
+
+function updateHomeCreatePanelVisibility(visibleIds = getVisibleHomeActionIds()) {
+  const createPanel = els.albumCreateActions?.closest(".album-create-panel");
+
+  if (!createPanel) {
+    return;
+  }
+
+  const formVisible = !els.albumForm.classList.contains("hidden");
+  const hasVisibleCreateAction = visibleIds.has("showAlbumFormButton") || visibleIds.has("importAlbumButton");
+  createPanel.classList.toggle("hidden", !formVisible && !hasVisibleCreateAction);
+}
+
+function renderHomeActionSettings(panel = document) {
+  const list = panel.querySelector(".home-action-toggle-list");
+  if (!list) {
+    return;
+  }
+
+  const visibleIds = getVisibleHomeActionIds();
+  list.textContent = "";
+
+  HOME_ACTIONS.forEach((action) => {
+    const label = document.createElement("label");
+    label.className = "home-action-toggle";
+
+    const input = document.createElement("input");
+    input.type = "checkbox";
+    input.checked = visibleIds.has(action.id);
+    input.addEventListener("change", () => {
+      const nextVisibleIds = getVisibleHomeActionIds();
+
+      if (input.checked) {
+        nextVisibleIds.add(action.id);
+      } else {
+        nextVisibleIds.delete(action.id);
+      }
+
+      saveVisibleHomeActionIds(nextVisibleIds);
+      applyHomeActionVisibility();
+    });
+
+    const text = document.createElement("span");
+    text.textContent = action.label;
+    label.append(input, text);
+    list.append(label);
+  });
 }
 
 async function processStickerScannerFile(file, panel) {
@@ -5173,3 +5351,4 @@ function sortScannerStickerCodes(a, b) {
 init();
 initAppSettingsFeature();
 initStickerScannerFeature();
+initHomeActionOrganizer();

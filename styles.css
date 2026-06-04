@@ -2058,6 +2058,60 @@ select:focus {
   line-height: 1.35;
 }
 
+.app-settings-actions-config {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.app-settings-actions-config h3 {
+  margin: 0 0 0.25rem;
+}
+
+.app-settings-actions-config p {
+  margin: 0;
+  color: var(--muted-color, #5d716a);
+  font-size: 0.88rem;
+  line-height: 1.35;
+}
+
+.home-action-toggle-list {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.home-action-toggle {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface-soft);
+  font-weight: 800;
+}
+
+.home-action-toggle input {
+  width: 18px;
+  min-height: 18px;
+  accent-color: var(--green);
+}
+
+.home-more-options-panel {
+  width: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-soft);
+}
+
+.home-more-options-panel.hidden {
+  display: none;
+}
+
 .scanner-panel {
   display: grid;
   gap: 1rem;
@@ -2230,7 +2284,11 @@ body.dark .scanner-cloud-config p,
 html[data-theme="dark"] .app-settings-cloud-config p,
 body[data-theme="dark"] .app-settings-cloud-config p,
 body.dark .app-settings-cloud-config p,
-.dark .app-settings-cloud-config p {
+.dark .app-settings-cloud-config p,
+html[data-theme="dark"] .app-settings-actions-config p,
+body[data-theme="dark"] .app-settings-actions-config p,
+body.dark .app-settings-actions-config p,
+.dark .app-settings-actions-config p {
   color: #b9cbc4;
 }
 
