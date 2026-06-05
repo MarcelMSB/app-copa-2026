@@ -326,6 +326,8 @@ const els = {
   selectAllMissingFilterPickerButton: document.querySelector("#selectAllMissingFilterPickerButton"),
   clearMissingFilterPickerButton: document.querySelector("#clearMissingFilterPickerButton"),
   copyVisibleMissingButton: document.querySelector("#copyVisibleMissingButton"),
+  shareVisibleMissingButton: document.querySelector("#shareVisibleMissingButton"),
+  whatsappVisibleMissingButton: document.querySelector("#whatsappVisibleMissingButton"),
   missingHubClearFilterButton: document.querySelector("#missingHubClearFilterButton"),
   missingPickPanel: document.querySelector("#missingPickPanel"),
   missingPickResult: document.querySelector("#missingPickResult"),
@@ -2905,7 +2907,6 @@ function buildMissingPicksText() {
 
 function buildVisibleMissingHubText() {
   const aggregates = getMissingHubAggregates();
-  const quantityMap = new Map(aggregates.map((entry) => [entry.item.id, { quantity: entry.quantity }]));
   const items = aggregates.map((entry) => entry.item);
   const lines = [
     "Figurinhas App",
@@ -2918,7 +2919,7 @@ function buildVisibleMissingHubText() {
     return lines.join("\n");
   }
 
-  appendDuplicateItemLines(lines, items, quantityMap);
+  appendCompactItemLines(lines, items);
   return lines.join("\n").trim();
 }
 
@@ -3134,7 +3135,6 @@ function closeMissingHubListCheck() {
 
 function findMissingHubActionsBlock() {
   const trigger = els.missingHubListCheckButton;
-  const copyButton = els.copyVisibleMissingButton || document.querySelector("#copyVisibleMissingButton");
 
   if (!trigger) {
     return null;
@@ -3147,15 +3147,12 @@ function findMissingHubActionsBlock() {
       }
 
       const buttons = Array.from(candidate.querySelectorAll("button"));
-      const hasCopyButton = copyButton
-        ? candidate.contains(copyButton)
-        : buttons.some((button) => button.textContent?.trim().toLowerCase().includes("copiar faltantes"));
       const hasFiltersButton = buttons.some((button) => {
         const label = `${button.textContent || ""} ${button.getAttribute("aria-label") || ""}`.toLowerCase();
         return label.includes("filtros");
       });
 
-      return hasCopyButton && hasFiltersButton;
+      return candidate.contains(trigger) && hasFiltersButton;
     })
     .sort((a, b) => a.querySelectorAll("*").length - b.querySelectorAll("*").length);
 
@@ -3195,6 +3192,17 @@ async function copyVisibleMissingHub() {
   }
 
   window.prompt("Copie as figurinhas faltantes:", text);
+}
+
+async function shareVisibleMissingHub(useWhatsApp = false) {
+  const text = buildVisibleMissingHubText();
+
+  if (useWhatsApp) {
+    openWhatsAppShare(text);
+    return;
+  }
+
+  await shareText(text, "Faltantes");
 }
 
 function renderMissingPickPanel() {
@@ -3931,13 +3939,24 @@ function registerEvents() {
       window.alert("Não foi possível copiar as figurinhas marcadas agora.");
     }
   });
-  els.copyVisibleMissingButton.addEventListener("click", async () => {
+  els.copyVisibleMissingButton?.addEventListener("click", async () => {
     try {
       await copyVisibleMissingHub();
     } catch {
       window.alert("Não foi possível copiar as faltantes agora.");
     }
   });
+
+  els.shareVisibleMissingButton?.addEventListener("click", async () => {
+    try {
+      await shareVisibleMissingHub(false);
+    } catch (error) {
+      if (error?.name !== "AbortError") {
+        window.alert("Nao foi possivel compartilhar as faltantes agora.");
+      }
+    }
+  });
+  els.whatsappVisibleMissingButton?.addEventListener("click", () => shareVisibleMissingHub(true));
 
   els.missingHubAlbumFilter.addEventListener("input", () => {
     normalizeMissingHubAlbumSelection();

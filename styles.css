@@ -230,6 +230,13 @@ main {
   align-items: center;
 }
 
+.summary-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
 .title-row h1 {
   min-width: 0;
   overflow: hidden;
@@ -599,10 +606,11 @@ select:focus {
   gap: 14px;
   align-items: end;
   padding: 18px;
-  background: var(--surface);
-  border: 1px solid var(--line);
+  background: var(--green);
+  border: 1px solid rgba(255, 255, 255, 0.18);
   border-radius: 8px;
   box-shadow: 0 8px 22px rgba(23, 35, 31, 0.05);
+  color: #fff;
 }
 
 .duplicates-header h1 {
@@ -621,23 +629,23 @@ select:focus {
 
 .duplicates-summary {
   margin: 8px 0 0;
-  color: var(--muted);
+  color: rgba(255, 255, 255, 0.88);
   font-size: 0.95rem;
   font-weight: 850;
 }
 
 .duplicates-header .summary-action-button {
-  border-color: var(--line);
-  background: var(--field-bg);
-  color: var(--ink);
+  border-color: rgba(255, 255, 255, 0.34);
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
 }
 
 .duplicates-header .summary-action-button img {
-  filter: none;
+  filter: brightness(0) invert(1);
 }
 
 .duplicates-header .summary-action-button:hover {
-  background: var(--surface-soft);
+  background: rgba(255, 255, 255, 0.2);
 }
 
 .duplicates-header .duplicate-whatsapp-button {
@@ -648,12 +656,28 @@ select:focus {
   filter: invert(67%) sepia(72%) saturate(635%) hue-rotate(88deg) brightness(93%) contrast(88%);
 }
 
+.duplicates-header .missing-hub-whatsapp-button {
+  border-color: rgba(37, 211, 102, 0.55);
+}
+
+.duplicates-header .missing-hub-whatsapp-button img {
+  filter: invert(67%) sepia(72%) saturate(635%) hue-rotate(88deg) brightness(93%) contrast(88%);
+}
+
 :root[data-theme="dark"] .duplicates-header .duplicate-share-button img {
+  filter: brightness(0) invert(1);
+}
+
+:root[data-theme="dark"] .duplicates-header .missing-hub-share-button img {
   filter: brightness(0) invert(1);
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme]) .duplicates-header .duplicate-share-button img {
+    filter: brightness(0) invert(1);
+  }
+
+  :root:not([data-theme]) .duplicates-header .missing-hub-share-button img {
     filter: brightness(0) invert(1);
   }
 }

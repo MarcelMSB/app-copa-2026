@@ -119,6 +119,14 @@
               <p class="eyebrow">Álbum ativo</p>
               <div class="title-row">
                 <h1 id="missingHubTitle">Faltantes</h1>
+                <div class="summary-actions">
+                  <button class="summary-action-button missing-hub-share-button" id="shareVisibleMissingButton" type="button" aria-label="Compartilhar faltantes" title="Compartilhar">
+                    <img src="assets/ui/share-2.svg" alt="" aria-hidden="true">
+                  </button>
+                  <button class="summary-action-button whatsapp-button missing-hub-whatsapp-button" id="whatsappVisibleMissingButton" type="button" aria-label="Compartilhar faltantes no WhatsApp" title="WhatsApp">
+                    <img src="assets/ui/whatsapp.svg" alt="" aria-hidden="true">
+                  </button>
+                </div>
               </div>
               <p class="duplicates-summary" id="missingHubSummary">0 individuais - 0 no total</p>
             </div>
@@ -126,7 +134,6 @@
 
           <section class="mode-panel duplicates-filter-shell" aria-label="Filtros de faltantes">
             <button class="filter-toggle" id="missingHubFilterToggle" type="button">Filtros</button>
-            <button class="ghost-button neutral-button" id="copyVisibleMissingButton" type="button">Copiar faltantes</button>
             <button class="ghost-button neutral-button" id="missingHubListCheckButton" type="button">Conferir lista</button>
             <button class="ghost-button clear-filter-button hidden" id="missingHubClearFilterButton" type="button">Limpar</button>
             <div class="filter-panel missing-hub-filters hidden" id="missingHubFilterPanel">
