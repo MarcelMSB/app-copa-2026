@@ -978,6 +978,31 @@ select:focus {
   align-items: center;
 }
 
+.album-actions.has-more-options {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+}
+
+.album-more-options-panel {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 8px;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-soft);
+}
+
+.album-more-options-panel.hidden,
+.album-more-options-button.hidden {
+  display: none;
+}
+
+.album-more-options-panel .album-edit-button {
+  width: 100%;
+  min-height: 42px;
+}
+
 .export-button {
   display: inline-grid;
   place-items: center;
@@ -2021,9 +2046,12 @@ select:focus {
 
 .app-settings-card {
   width: min(100%, 460px);
+  max-height: min(86vh, 720px);
   display: grid;
   gap: 1rem;
   padding: 1rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   border: 1px solid var(--border-color, rgba(16, 45, 38, 0.14));
   border-radius: 8px;
   background: var(--surface-color, #ffffff);

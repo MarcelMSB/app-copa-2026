@@ -7,6 +7,7 @@ const MISSING_PICK_STORE = "missingPicks";
 const VIEW_MODE_STORAGE_KEY = "copa-2026-view-mode";
 const THEME_STORAGE_KEY = "copa-2026-theme";
 const HOME_ACTION_VISIBILITY_STORAGE_KEY = "copa-2026-home-actions";
+const ALBUM_ACTION_VISIBILITY_STORAGE_KEY = "copa-2026-album-actions";
 const DEFAULT_VIEW_MODE = "group";
 const STICKER_TYPE_LABELS = {
   standard: "Figurinha comum",
@@ -2643,8 +2644,89 @@ function renderAlbums() {
       savePulse();
     });
 
+    applyAlbumActionVisibility(node);
+
     els.albumList.append(node);
   });
+}
+
+function applyAlbumActionVisibility(card) {
+  const actions = card.querySelector(".album-actions");
+  const visibleKeys = getVisibleAlbumActionKeys();
+
+  if (!actions) {
+    return;
+  }
+
+  let moreButton = actions.querySelector(".album-more-options-button");
+  let morePanel = actions.querySelector(".album-more-options-panel");
+
+  if (!moreButton) {
+    moreButton = document.createElement("button");
+    moreButton.className = "album-icon-action album-more-options-button";
+    moreButton.type = "button";
+    moreButton.setAttribute("aria-label", "Mais opções do álbum");
+    moreButton.title = "Mais opções";
+    moreButton.textContent = "⋯";
+    moreButton.addEventListener("click", () => morePanel.classList.toggle("hidden"));
+  }
+
+  if (!morePanel) {
+    morePanel = document.createElement("div");
+    morePanel.className = "album-more-options-panel hidden";
+    morePanel.addEventListener("click", (event) => {
+      if (event.target.closest("button, [role='button']")) {
+        morePanel.classList.add("hidden");
+      }
+    });
+  }
+
+  actions.append(moreButton, morePanel);
+
+  let hiddenCount = 0;
+  ALBUM_ACTIONS.forEach((action) => {
+    if (action.key === "edit") {
+      const editButton = card.querySelector(action.selector) || morePanel.querySelector(action.selector);
+
+      if (!editButton) {
+        return;
+      }
+
+      let editSlot = card.querySelector(".album-edit-slot");
+      if (!editSlot) {
+        editSlot = document.createElement("span");
+        editSlot.className = "album-edit-slot hidden";
+        editButton.parentElement.insertBefore(editSlot, editButton.nextSibling);
+      }
+
+      if (visibleKeys.has(action.key)) {
+        editButton.classList.remove("album-icon-action", "album-more-edit-button");
+        editSlot.parentNode.insertBefore(editButton, editSlot);
+      } else {
+        hiddenCount += 1;
+        editButton.classList.add("album-icon-action", "album-more-edit-button");
+        morePanel.append(editButton);
+      }
+      return;
+    }
+
+    const button = actions.querySelector(action.selector) || morePanel.querySelector(action.selector);
+
+    if (!button) {
+      return;
+    }
+
+    if (visibleKeys.has(action.key)) {
+      actions.insertBefore(button, moreButton);
+    } else {
+      hiddenCount += 1;
+      morePanel.append(button);
+    }
+  });
+
+  moreButton.classList.toggle("hidden", hiddenCount === 0);
+  morePanel.classList.toggle("hidden", hiddenCount === 0 || morePanel.classList.contains("hidden"));
+  actions.classList.toggle("has-more-options", hiddenCount > 0);
 }
 
 async function openAlbum(albumId) {
@@ -4031,6 +4113,15 @@ const HOME_ACTIONS = [
   { id: "stickerScannerButton", label: "Digitalizar figurinha" }
 ];
 const homeActionSlots = new Map();
+const ALBUM_ACTIONS = [
+  { key: "edit", selector: ".album-edit-button", label: "Editar nome" },
+  { key: "missing-share", selector: ".missing-share-button", label: "Compartilhar" },
+  { key: "missing-whatsapp", selector: ".missing-whatsapp-button", label: "WhatsApp" },
+  { key: "missing-review", selector: ".missing-review-button", label: "Conferência" },
+  { key: "text-check", selector: ".text-check-button", label: "Conferir lista" },
+  { key: "export", selector: ".export-button", label: "Exportar" },
+  { key: "delete", selector: ".delete-button", label: "Excluir" }
+];
 
 function loadTesseractClient() {
   if (window.Tesseract) {
@@ -4357,12 +4448,20 @@ function createAppSettingsPanel() {
         </div>
         <div class="home-action-toggle-list"></div>
       </div>
+      <div class="app-settings-actions-config">
+        <div>
+          <h3>Botões dos álbuns</h3>
+          <p>Os botões desmarcados ficam dentro de Mais opções em cada álbum.</p>
+        </div>
+        <div class="album-action-toggle-list"></div>
+      </div>
     </div>
   `;
 
   const input = panel.querySelector(".scanner-google-key-input");
   const status = panel.querySelector(".app-settings-status");
   renderHomeActionSettings(panel);
+  renderAlbumActionSettings(panel);
   input.value = getGoogleVisionApiKey();
   status.textContent = input.value ? "Google Vision configurado neste aparelho." : "Google Vision não configurado.";
 
@@ -4398,6 +4497,7 @@ function openAppSettingsPanel() {
   input.value = getGoogleVisionApiKey();
   status.textContent = input.value ? "Google Vision configurado neste aparelho." : "Google Vision não configurado.";
   renderHomeActionSettings(panel);
+  renderAlbumActionSettings(panel);
   panel.classList.remove("hidden");
   input.focus();
 }
@@ -4554,6 +4654,63 @@ function renderHomeActionSettings(panel = document) {
 
       saveVisibleHomeActionIds(nextVisibleIds);
       applyHomeActionVisibility();
+    });
+
+    const text = document.createElement("span");
+    text.textContent = action.label;
+    label.append(input, text);
+    list.append(label);
+  });
+}
+
+function getVisibleAlbumActionKeys() {
+  try {
+    const saved = JSON.parse(window.localStorage.getItem(ALBUM_ACTION_VISIBILITY_STORAGE_KEY) || "null");
+    if (Array.isArray(saved)) {
+      return new Set(saved.filter((key) => ALBUM_ACTIONS.some((action) => action.key === key)));
+    }
+  } catch (error) {
+    console.warn("Nao foi possivel ler a configuracao dos botoes dos albuns.", error);
+  }
+
+  return new Set(ALBUM_ACTIONS.map((action) => action.key));
+}
+
+function saveVisibleAlbumActionKeys(keys) {
+  try {
+    window.localStorage.setItem(ALBUM_ACTION_VISIBILITY_STORAGE_KEY, JSON.stringify(Array.from(keys)));
+  } catch (error) {
+    console.warn("Nao foi possivel salvar a configuracao dos botoes dos albuns.", error);
+  }
+}
+
+function renderAlbumActionSettings(panel = document) {
+  const list = panel.querySelector(".album-action-toggle-list");
+  if (!list) {
+    return;
+  }
+
+  const visibleKeys = getVisibleAlbumActionKeys();
+  list.textContent = "";
+
+  ALBUM_ACTIONS.forEach((action) => {
+    const label = document.createElement("label");
+    label.className = "home-action-toggle";
+
+    const input = document.createElement("input");
+    input.type = "checkbox";
+    input.checked = visibleKeys.has(action.key);
+    input.addEventListener("change", () => {
+      const nextVisibleKeys = getVisibleAlbumActionKeys();
+
+      if (input.checked) {
+        nextVisibleKeys.add(action.key);
+      } else {
+        nextVisibleKeys.delete(action.key);
+      }
+
+      saveVisibleAlbumActionKeys(nextVisibleKeys);
+      renderAlbums();
     });
 
     const text = document.createElement("span");
