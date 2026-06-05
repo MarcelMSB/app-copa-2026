@@ -296,10 +296,11 @@ const els = {
   whatsappShareButton: document.querySelector("#whatsappShareButton"),
   shareDuplicatesButton: document.querySelector("#shareDuplicatesButton"),
   whatsappDuplicatesButton: document.querySelector("#whatsappDuplicatesButton"),
-  modeOptions: document.querySelector("#modeOptions"),
+  viewModeSelect: document.querySelector("#viewModeSelect"),
   filterToggle: document.querySelector("#filterToggle"),
   filterPanel: document.querySelector("#filterPanel"),
   clearFilterButton: document.querySelector("#clearFilterButton"),
+  collectionTextCheckButton: document.querySelector("#collectionTextCheckButton"),
   searchInput: document.querySelector("#searchInput"),
   statusFilter: document.querySelector("#statusFilter"),
   stickerTypeFilter: document.querySelector("#stickerTypeFilter"),
@@ -522,8 +523,9 @@ function setViewMode(mode) {
   } catch {
     // The selected mode still works for the current session.
   }
-  const input = els.modeOptions.querySelector(`input[value="${state.viewMode}"]`);
-  if (input) input.checked = true;
+  if (els.viewModeSelect) {
+    els.viewModeSelect.value = state.viewMode;
+  }
 }
 
 function getSystemTheme() {
@@ -986,7 +988,7 @@ function renderCollectionSummary(album) {
 }
 
 function getVisibleItems() {
-  const query = els.searchInput.value.trim().toLowerCase();
+  const query = normalizeMissingHubSearch(els.searchInput.value);
   const status = els.statusFilter.value;
   const stickerType = els.stickerTypeFilter.value;
   const stickerMap = getStickerMap();
@@ -994,8 +996,10 @@ function getVisibleItems() {
   return getCollectionItems().filter((item) => {
     const sticker = stickerMap.get(item.id);
     const group = GROUP_BY_ID.get(item.groupId);
-    const haystack = `${item.label} ${item.teamCode} ${item.teamName} ${group?.name || ""} ${item.stickerTypeLabel || ""} ${sticker?.notes || ""}`.toLowerCase();
-    const matchesQuery = !query || haystack.includes(query);
+    const haystack = normalizeMissingHubSearch(`${item.label} ${item.teamCode} ${item.number} ${item.teamName} ${group?.name || ""} ${item.stickerTypeLabel || ""} ${sticker?.notes || ""}`);
+    const compactHaystack = haystack.replace(/\s+/g, "");
+    const compactQuery = query.replace(/\s+/g, "");
+    const matchesQuery = !query || haystack.includes(query) || compactHaystack.includes(compactQuery);
     const matchesStatus =
       status === "all" ||
       (status === "owned" && isOwned(sticker)) ||
@@ -2052,13 +2056,39 @@ function renderTextCheckPanel(album) {
   output.className = "text-check-output";
   section.append(output);
 
-  checkButton.addEventListener("click", () => {
-    const parsedItemIds = parsePastedStickerList(textarea.value, album);
-    const neededItems = state.missingReview.items.filter((item) => parsedItemIds.has(item.id));
-    renderTextCheckResult(output, album, neededItems);
+  checkButton.addEventListener("click", async () => {
+    checkButton.disabled = true;
+
+    try {
+      const parsedItemIds = parsePastedStickerList(textarea.value, album);
+      const stickers = await getStickersForAlbum(album.id);
+      const currentMissingItems = getMissingItemsForAlbum(album, stickers);
+      state.missingReview.items = currentMissingItems;
+      const neededItems = currentMissingItems.filter((item) => parsedItemIds.has(item.id));
+      renderTextCheckResult(output, album, neededItems);
+    } finally {
+      checkButton.disabled = false;
+    }
   });
 
   els.missingReviewResult.append(section);
+}
+
+function positionMissingReviewPanel(album) {
+  const isActiveAlbumScreen = state.activeAlbum?.id === album.id && !els.stickersScreen.classList.contains("hidden");
+  const panel = els.missingReviewPanel;
+
+  if (isActiveAlbumScreen) {
+    const controls = els.stickersScreen.querySelector(".collection-control-shell");
+    if (controls?.parentElement && controls.nextElementSibling !== panel) {
+      controls.parentElement.insertBefore(panel, controls.nextSibling);
+    }
+    return;
+  }
+
+  if (els.albumList?.parentElement && els.albumList.previousElementSibling !== panel) {
+    els.albumList.parentElement.insertBefore(panel, els.albumList);
+  }
 }
 
 function renderDuplicateListCheckResult(output, items, duplicateMap) {
@@ -2309,6 +2339,7 @@ async function openMissingReview(album) {
   state.missingReview.albumId = album.id;
   state.missingReview.items = getMissingItemsForAlbum(album, stickers);
 
+  positionMissingReviewPanel(album);
   renderMissingReviewList(album);
   els.missingReviewPanel.classList.remove("hidden");
   els.missingReviewPanel.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -2321,6 +2352,7 @@ async function openTextCheck(album) {
   state.missingReview.albumId = album.id;
   state.missingReview.items = getMissingItemsForAlbum(album, stickers);
 
+  positionMissingReviewPanel(album);
   renderTextCheckPanel(album);
   els.missingReviewPanel.classList.remove("hidden");
   els.missingReviewPanel.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -3912,12 +3944,16 @@ function registerEvents() {
     renderCollection();
   });
 
-  els.modeOptions.addEventListener("change", (event) => {
-    if (!event.target.matches('input[name="viewMode"]')) return;
+  els.viewModeSelect.addEventListener("change", (event) => {
     setViewMode(event.target.value);
     state.selectedGroupId = null;
     state.selectedTeamCode = null;
     renderCollection();
+  });
+
+  els.collectionTextCheckButton.addEventListener("click", () => {
+    if (!state.activeAlbum) return;
+    openTextCheck(state.activeAlbum);
   });
 
   [els.searchInput, els.statusFilter, els.stickerTypeFilter].forEach((el) => {

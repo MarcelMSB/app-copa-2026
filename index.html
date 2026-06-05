@@ -98,17 +98,6 @@
             <div class="compare-result" id="compareResult"></div>
           </section>
 
-          <section class="compare-panel hidden" id="missingReviewPanel" aria-live="polite">
-            <div class="compare-panel-heading">
-              <div>
-                <p class="panel-kicker">Conferência</p>
-                <h2 id="missingReviewTitle">Figurinhas faltantes</h2>
-              </div>
-              <button class="ghost-button neutral-button" id="closeMissingReviewButton" type="button">Fechar</button>
-            </div>
-            <div class="compare-result missing-review-result" id="missingReviewResult"></div>
-          </section>
-
           <div class="album-grid" id="albumList" aria-live="polite"></div>
           <p class="empty-state hidden" id="emptyAlbums">Crie seu primeiro álbum para começar a marcar as figurinhas.</p>
         </section>
@@ -255,28 +244,29 @@
             </div>
           </div>
 
-          <section class="mode-panel" aria-label="Agrupamento">
-            <div class="mode-options" id="modeOptions">
-              <label class="mode-option">
-                <input type="radio" name="viewMode" value="group" checked>
-                <span>Por Grupo</span>
-              </label>
-              <label class="mode-option">
-                <input type="radio" name="viewMode" value="team">
-                <span>Por Time</span>
-              </label>
-              <label class="mode-option">
-                <input type="radio" name="viewMode" value="sticker">
-                <span>Por Figurinha</span>
-              </label>
-            </div>
-            <button class="filter-toggle" id="filterToggle" type="button">Filtros</button>
-            <button class="ghost-button clear-filter-button hidden" id="clearFilterButton" type="button">Limpar</button>
+          <section class="mode-panel collection-control-shell" aria-label="Agrupamento e filtros">
+            <label class="collection-mode-field">
+              <span>Agrupar</span>
+              <select id="viewModeSelect">
+                <option value="group">Por Grupo</option>
+                <option value="team">Por Time</option>
+                <option value="sticker">Por Figurinha</option>
+              </select>
+            </label>
+            <label class="search-field collection-search-field">
+              <span>Buscar</span>
+              <input id="searchInput" placeholder="Sigla ou número">
+            </label>
+            <button class="album-icon-action collection-control-button" id="filterToggle" type="button" aria-label="Filtros" title="Filtros">
+              <img src="assets/ui/filter.svg" alt="" aria-hidden="true">
+            </button>
+            <button class="album-icon-action text-check-button collection-control-button" id="collectionTextCheckButton" type="button" aria-label="Conferir lista" title="Conferir lista">
+              <img src="assets/ui/file-text.svg" alt="" aria-hidden="true">
+            </button>
+            <button class="album-icon-action clear-filter-button collection-control-button hidden" id="clearFilterButton" type="button" aria-label="Limpar filtros" title="Limpar filtros">
+              <img src="assets/ui/x.svg" alt="" aria-hidden="true">
+            </button>
             <div class="filter-panel hidden" id="filterPanel">
-              <label class="search-field">
-                <span>Buscar</span>
-                <input id="searchInput" placeholder="Time, sigla, grupo ou figurinha">
-              </label>
               <label>
                 Status
                 <select id="statusFilter">
@@ -395,6 +385,17 @@
             <div class="compare-result duplicates-result" id="duplicatesResult"></div>
             <p class="empty-state hidden" id="emptyDuplicates">Nenhuma figurinha encontrada com esses filtros.</p>
           </section>
+        </section>
+
+        <section class="compare-panel hidden" id="missingReviewPanel" aria-live="polite">
+          <div class="compare-panel-heading">
+            <div>
+              <p class="panel-kicker">Conferência</p>
+              <h2 id="missingReviewTitle">Figurinhas faltantes</h2>
+            </div>
+            <button class="ghost-button neutral-button" id="closeMissingReviewButton" type="button">Fechar</button>
+          </div>
+          <div class="compare-result missing-review-result" id="missingReviewResult"></div>
         </section>
       </main>
     </div>
