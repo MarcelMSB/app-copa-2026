@@ -1020,7 +1020,7 @@ function getDuplicateQuantity(item) {
 }
 
 function getVisibleDuplicateItems() {
-  const query = els.duplicateSearchInput.value.trim().toLowerCase();
+  const query = normalizeMissingHubSearch(els.duplicateSearchInput.value);
   const status = els.duplicateStatusFilter.value;
   const stickerType = els.duplicateTypeFilter.value;
   const duplicateMap = getDuplicateMap();
@@ -1029,8 +1029,10 @@ function getVisibleDuplicateItems() {
     const record = duplicateMap.get(item.id);
     const quantity = record?.quantity || 0;
     const group = GROUP_BY_ID.get(item.groupId);
-    const haystack = `${item.label} ${item.teamCode} ${item.teamName} ${group?.name || ""} ${item.stickerTypeLabel || ""}`.toLowerCase();
-    const matchesQuery = !query || haystack.includes(query);
+    const haystack = normalizeMissingHubSearch(`${item.label} ${item.teamCode} ${item.number} ${item.teamName} ${group?.name || ""} ${item.stickerTypeLabel || ""}`);
+    const compactHaystack = haystack.replace(/\s+/g, "");
+    const compactQuery = query.replace(/\s+/g, "");
+    const matchesQuery = !query || haystack.includes(query) || compactHaystack.includes(compactQuery);
     const matchesStatus =
       status === "all" ||
       (status === "with" && quantity > 0) ||

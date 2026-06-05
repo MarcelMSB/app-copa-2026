@@ -331,16 +331,24 @@
             </div>
           </div>
 
-          <section class="mode-panel duplicates-filter-shell" aria-label="Filtros de repetidas">
-            <button class="filter-toggle" id="duplicateFilterToggle" type="button">Filtros</button>
-            <button class="ghost-button neutral-button" id="duplicateListCheckButton" type="button">Conferir Lista</button>
-            <button class="ghost-button neutral-button" id="duplicateImportButton" type="button">Importar</button>
-            <button class="ghost-button clear-filter-button hidden" id="duplicateClearFilterButton" type="button">Limpar</button>
+          <section class="mode-panel duplicates-filter-shell duplicate-control-shell" aria-label="Filtros de repetidas">
+            <label class="search-field duplicate-search-field">
+              <span>Buscar</span>
+              <input id="duplicateSearchInput" placeholder="Sigla ou número">
+            </label>
+            <button class="album-icon-action duplicate-control-button" id="duplicateFilterToggle" type="button" aria-label="Filtros" title="Filtros">
+              <img src="assets/ui/filter.svg" alt="" aria-hidden="true">
+            </button>
+            <button class="album-icon-action text-check-button duplicate-control-button" id="duplicateListCheckButton" type="button" aria-label="Conferir lista" title="Conferir lista">
+              <img src="assets/ui/file-text.svg" alt="" aria-hidden="true">
+            </button>
+            <button class="album-icon-action duplicate-control-button" id="duplicateImportButton" type="button" aria-label="Importar repetidas" title="Importar">
+              <img src="assets/ui/upload.svg" alt="" aria-hidden="true">
+            </button>
+            <button class="album-icon-action clear-filter-button duplicate-control-button hidden" id="duplicateClearFilterButton" type="button" aria-label="Limpar filtros" title="Limpar filtros">
+              <img src="assets/ui/x.svg" alt="" aria-hidden="true">
+            </button>
             <div class="filter-panel duplicates-filters hidden" id="duplicateFilterPanel">
-              <label class="search-field">
-                <span>Buscar</span>
-                <input id="duplicateSearchInput" placeholder="Time, sigla, grupo ou figurinha">
-              </label>
               <label>
                 Status
                 <select id="duplicateStatusFilter">
