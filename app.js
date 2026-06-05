@@ -4397,12 +4397,12 @@ function createStickerScannerPanel() {
     <div class="scanner-result hidden">
       <div class="scanner-result-heading">
         <h3>Figurinhas encontradas</h3>
-        <div class="scanner-result-actions">
-          <button class="ghost-button neutral-button scanner-clear-result-button" type="button">Limpar</button>
-          <button class="ghost-button neutral-button scanner-copy-button" type="button">Copiar</button>
-        </div>
       </div>
       <pre class="scanner-result-text"></pre>
+      <div class="scanner-result-actions">
+        <button class="ghost-button neutral-button scanner-clear-result-button" type="button">Limpar</button>
+        <button class="ghost-button neutral-button scanner-copy-button" type="button">Copiar</button>
+      </div>
     </div>
   `;
 

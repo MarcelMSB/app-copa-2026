@@ -2458,9 +2458,8 @@ select:focus {
 }
 
 .scanner-result-actions {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.5rem;
 }
 
@@ -2553,6 +2552,7 @@ select:focus {
 
 .scanner-copy-button,
 .scanner-clear-result-button {
+  width: 100%;
   min-height: 40px;
   padding-inline: 12px;
 }
