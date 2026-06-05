@@ -3365,7 +3365,13 @@ function renderMissingHubList(aggregates) {
   });
 }
 
-function renderMissingHubListCheckResult(output, entries) {
+async function getFreshMissingHubListCheckEntries(parsedItemIds) {
+  state.allStickers = await getAll(STICKER_STORE);
+  await loadMissingPicks();
+  return getMissingHubAggregates().filter((entry) => parsedItemIds.has(entry.item.id));
+}
+
+function renderMissingHubListCheckResult(output, entries, parsedItemIds) {
   output.textContent = "";
 
   const resultText = buildMissingHubListCheckText(entries);
@@ -3407,11 +3413,10 @@ function renderMissingHubListCheckResult(output, entries) {
       for (const entry of entries) {
         await addMissingPick(entry.item);
       }
-      output.textContent = "";
-      const done = document.createElement("p");
-      done.className = "compare-count";
-      done.textContent = `${entries.length} figurinhas adicionadas às marcadas.`;
-      output.append(done);
+
+      renderMissingHubScreen();
+      const refreshedEntries = await getFreshMissingHubListCheckEntries(parsedItemIds);
+      renderMissingHubListCheckResult(output, refreshedEntries, parsedItemIds);
     });
     actions.append(addButton);
   }
@@ -3456,10 +3461,16 @@ function renderMissingHubListCheckPanel() {
   output.className = "text-check-output";
   section.append(output);
 
-  checkButton.addEventListener("click", () => {
-    const parsedItemIds = parseDuplicatePastedStickerList(textarea.value);
-    const entries = getMissingHubAggregates().filter((entry) => parsedItemIds.has(entry.item.id));
-    renderMissingHubListCheckResult(output, entries);
+  checkButton.addEventListener("click", async () => {
+    checkButton.disabled = true;
+
+    try {
+      const parsedItemIds = parseDuplicatePastedStickerList(textarea.value);
+      const entries = await getFreshMissingHubListCheckEntries(parsedItemIds);
+      renderMissingHubListCheckResult(output, entries, parsedItemIds);
+    } finally {
+      checkButton.disabled = false;
+    }
   });
 
   els.missingHubListCheckResult.append(section);
