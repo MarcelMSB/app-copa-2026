@@ -247,7 +247,13 @@
           <section class="mode-panel collection-control-shell" aria-label="Agrupamento e filtros">
             <label class="collection-mode-field">
               <span>Agrupar</span>
-              <select id="viewModeSelect">
+              <button class="picker-button collection-mode-button" id="viewModePickerButton" type="button" aria-expanded="false" aria-controls="viewModePickerPanel">Por Grupo</button>
+              <div class="collection-mode-menu hidden" id="viewModePickerPanel">
+                <button type="button" data-view-mode="group">Por Grupo</button>
+                <button type="button" data-view-mode="team">Por Time</button>
+                <button type="button" data-view-mode="sticker">Por Figurinha</button>
+              </div>
+              <select id="viewModeSelect" class="hidden" aria-hidden="true" tabindex="-1">
                 <option value="group">Por Grupo</option>
                 <option value="team">Por Time</option>
                 <option value="sticker">Por Figurinha</option>

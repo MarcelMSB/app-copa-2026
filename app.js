@@ -297,6 +297,8 @@ const els = {
   shareDuplicatesButton: document.querySelector("#shareDuplicatesButton"),
   whatsappDuplicatesButton: document.querySelector("#whatsappDuplicatesButton"),
   viewModeSelect: document.querySelector("#viewModeSelect"),
+  viewModePickerButton: document.querySelector("#viewModePickerButton"),
+  viewModePickerPanel: document.querySelector("#viewModePickerPanel"),
   filterToggle: document.querySelector("#filterToggle"),
   filterPanel: document.querySelector("#filterPanel"),
   clearFilterButton: document.querySelector("#clearFilterButton"),
@@ -516,6 +518,14 @@ function getSavedViewMode() {
   }
 }
 
+function getViewModeLabel(mode) {
+  return {
+    group: "Por Grupo",
+    team: "Por Time",
+    sticker: "Por Figurinha"
+  }[mode] || "Por Grupo";
+}
+
 function setViewMode(mode) {
   state.viewMode = ["group", "team", "sticker"].includes(mode) ? mode : DEFAULT_VIEW_MODE;
   try {
@@ -525,6 +535,14 @@ function setViewMode(mode) {
   }
   if (els.viewModeSelect) {
     els.viewModeSelect.value = state.viewMode;
+  }
+  if (els.viewModePickerButton) {
+    els.viewModePickerButton.textContent = getViewModeLabel(state.viewMode);
+  }
+  if (els.viewModePickerPanel) {
+    Array.from(els.viewModePickerPanel.querySelectorAll("[data-view-mode]")).forEach((button) => {
+      button.classList.toggle("is-selected", button.dataset.viewMode === state.viewMode);
+    });
   }
 }
 
@@ -3955,11 +3973,27 @@ function registerEvents() {
     renderCollection();
   });
 
-  els.viewModeSelect.addEventListener("change", (event) => {
-    setViewMode(event.target.value);
+  const changeViewMode = (mode) => {
+    setViewMode(mode);
     state.selectedGroupId = null;
     state.selectedTeamCode = null;
+    els.viewModePickerPanel?.classList.add("hidden");
+    els.viewModePickerButton?.setAttribute("aria-expanded", "false");
     renderCollection();
+  };
+
+  els.viewModeSelect.addEventListener("change", (event) => {
+    changeViewMode(event.target.value);
+  });
+  els.viewModePickerButton.addEventListener("click", () => {
+    const isOpen = !els.viewModePickerPanel.classList.contains("hidden");
+    els.viewModePickerPanel.classList.toggle("hidden", isOpen);
+    els.viewModePickerButton.setAttribute("aria-expanded", String(!isOpen));
+  });
+  els.viewModePickerPanel.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-view-mode]");
+    if (!button) return;
+    changeViewMode(button.dataset.viewMode);
   });
 
   els.collectionTextCheckButton.addEventListener("click", () => {
@@ -4053,6 +4087,13 @@ function registerEvents() {
   [els.missingHubSearchInput, els.missingHubTeamFilter, els.missingHubTypeFilter].filter(Boolean).forEach((el) => {
     el.addEventListener("input", renderMissingHubScreen);
     el.addEventListener("change", renderMissingHubScreen);
+  });
+
+  document.addEventListener("click", (event) => {
+    const modeField = event.target.closest(".collection-mode-field");
+    if (modeField) return;
+    els.viewModePickerPanel?.classList.add("hidden");
+    els.viewModePickerButton?.setAttribute("aria-expanded", "false");
   });
 
   window.addEventListener("beforeinstallprompt", (event) => {
