@@ -310,6 +310,7 @@ const els = {
   collectionGrid: document.querySelector("#collectionGrid"),
   emptyCollection: document.querySelector("#emptyCollection"),
   missingHubSummary: document.querySelector("#missingHubSummary"),
+  missingHubSearchInput: document.querySelector("#missingHubSearchInput"),
   missingHubFilterToggle: document.querySelector("#missingHubFilterToggle"),
   missingHubFilterPanel: document.querySelector("#missingHubFilterPanel"),
   missingHubAlbumPickerButton: document.querySelector("#missingHubAlbumPickerButton"),
@@ -1163,10 +1164,38 @@ function getMissingHubTeamCodes() {
     .filter((value) => value !== "all");
 }
 
+function normalizeMissingHubSearch(value) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toUpperCase();
+}
+
+function matchesMissingHubSearch(item, query) {
+  if (!query) return true;
+
+  const normalizedNumber = normalizeMissingHubSearch(item.number);
+  const normalizedTeam = normalizeMissingHubSearch(item.teamCode);
+  const normalizedLabel = normalizeMissingHubSearch(item.label);
+  const compactLabel = normalizedLabel.replace(/\s+/g, "");
+  const compactQuery = query.replace(/\s+/g, "");
+
+  return [
+    normalizedTeam,
+    normalizedNumber,
+    normalizedLabel,
+    `${normalizedTeam} ${normalizedNumber}`,
+    `${normalizedTeam}${normalizedNumber}`,
+    compactLabel
+  ].some((value) => value.includes(query) || value.includes(compactQuery));
+}
+
 function getMissingHubAggregates() {
   const selectedAlbumIds = new Set(getMissingHubAlbumIds());
   const selectedTeamCodes = new Set(getMissingHubTeamCodes());
   const selectedType = els.missingHubTypeFilter.value;
+  const searchQuery = normalizeMissingHubSearch(els.missingHubSearchInput?.value);
   const aggregates = new Map();
 
   state.albums
@@ -1178,6 +1207,7 @@ function getMissingHubAggregates() {
       getCollectionItems(album)
         .filter((item) => !selectedTeamCodes.size || selectedTeamCodes.has(item.teamCode))
         .filter((item) => selectedType === "all" || item.stickerType === selectedType)
+        .filter((item) => matchesMissingHubSearch(item, searchQuery))
         .filter((item) => !isOwned(stickerMap.get(item.id)))
         .forEach((item) => {
           const current = aggregates.get(item.id) || {
@@ -1244,7 +1274,8 @@ function updateMissingHubClearButton() {
   const hasFilter = Boolean(
     selectedAlbumIds.length ||
     selectedTeamCodes.length ||
-    els.missingHubTypeFilter.value !== "all"
+    els.missingHubTypeFilter.value !== "all" ||
+    els.missingHubSearchInput?.value.trim()
   );
 
   els.missingHubClearFilterButton.classList.toggle("hidden", !hasFilter);
@@ -3919,6 +3950,9 @@ function registerEvents() {
       option.selected = option.value === "all";
     });
     els.missingHubTypeFilter.value = "all";
+    if (els.missingHubSearchInput) {
+      els.missingHubSearchInput.value = "";
+    }
     renderMissingHubScreen();
   });
   els.missingHubFilterToggle.addEventListener("click", () => {
@@ -3967,7 +4001,7 @@ function registerEvents() {
     renderMissingHubScreen();
   });
 
-  [els.missingHubTeamFilter, els.missingHubTypeFilter].forEach((el) => {
+  [els.missingHubSearchInput, els.missingHubTeamFilter, els.missingHubTypeFilter].filter(Boolean).forEach((el) => {
     el.addEventListener("input", renderMissingHubScreen);
     el.addEventListener("change", renderMissingHubScreen);
   });

@@ -132,10 +132,20 @@
             </div>
           </div>
 
-          <section class="mode-panel duplicates-filter-shell" aria-label="Filtros de faltantes">
-            <button class="filter-toggle" id="missingHubFilterToggle" type="button">Filtros</button>
-            <button class="ghost-button neutral-button" id="missingHubListCheckButton" type="button">Conferir lista</button>
-            <button class="ghost-button clear-filter-button hidden" id="missingHubClearFilterButton" type="button">Limpar</button>
+          <section class="mode-panel duplicates-filter-shell missing-hub-control-shell" aria-label="Filtros de faltantes">
+            <label class="search-field missing-hub-search-field">
+              <span>Buscar</span>
+              <input id="missingHubSearchInput" placeholder="Sigla ou número">
+            </label>
+            <button class="album-icon-action missing-hub-control-button" id="missingHubFilterToggle" type="button" aria-label="Filtros" title="Filtros">
+              <img src="assets/ui/filter.svg" alt="" aria-hidden="true">
+            </button>
+            <button class="album-icon-action text-check-button missing-hub-control-button" id="missingHubListCheckButton" type="button" aria-label="Conferir lista" title="Conferir lista">
+              <img src="assets/ui/file-text.svg" alt="" aria-hidden="true">
+            </button>
+            <button class="album-icon-action clear-filter-button missing-hub-control-button hidden" id="missingHubClearFilterButton" type="button" aria-label="Limpar filtros" title="Limpar filtros">
+              <img src="assets/ui/x.svg" alt="" aria-hidden="true">
+            </button>
             <div class="filter-panel missing-hub-filters hidden" id="missingHubFilterPanel">
               <label>
                 Álbum

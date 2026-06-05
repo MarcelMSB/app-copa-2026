@@ -687,6 +687,53 @@ select:focus {
   justify-content: start;
 }
 
+.missing-hub-control-shell {
+  grid-template-columns: minmax(140px, 1fr) repeat(3, 46px);
+  align-items: end;
+}
+
+.mode-panel.missing-hub-control-shell {
+  grid-template-columns: minmax(0, 1fr) repeat(3, 46px);
+}
+
+.missing-hub-search-field {
+  position: relative;
+  min-width: 0;
+}
+
+.missing-hub-search-field span {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.missing-hub-search-field input {
+  width: 100%;
+  min-height: 46px;
+}
+
+.missing-hub-control-button,
+.missing-hub-control-button.clear-filter-button {
+  width: 46px;
+  min-width: 46px;
+}
+
+.missing-hub-control-button img {
+  opacity: 0.9;
+}
+
+.missing-hub-control-button.clear-filter-button {
+  color: var(--red);
+  border-color: rgba(193, 77, 63, 0.36);
+}
+
+.missing-hub-control-button.clear-filter-button:hover {
+  background: rgba(193, 77, 63, 0.08);
+}
+
 .duplicates-filters {
   grid-column: 1 / -1;
   grid-template-columns: minmax(0, 1fr) minmax(150px, 210px) minmax(170px, 240px);
@@ -1102,7 +1149,8 @@ select:focus {
   :root:not([data-theme]) .missing-share-button img,
   :root:not([data-theme]) .missing-review-button img,
   :root:not([data-theme]) .text-check-button img,
-  :root:not([data-theme]) .export-button img {
+  :root:not([data-theme]) .export-button img,
+  :root:not([data-theme]) .missing-hub-control-button img {
     filter: brightness(0) invert(1);
   }
 }
@@ -1110,8 +1158,20 @@ select:focus {
 :root[data-theme="dark"] .missing-share-button img,
 :root[data-theme="dark"] .missing-review-button img,
 :root[data-theme="dark"] .text-check-button img,
-:root[data-theme="dark"] .export-button img {
+:root[data-theme="dark"] .export-button img,
+:root[data-theme="dark"] .missing-hub-control-button img {
   filter: brightness(0) invert(1);
+}
+
+.missing-hub-control-button.clear-filter-button img,
+:root[data-theme="dark"] .missing-hub-control-button.clear-filter-button img {
+  filter: invert(42%) sepia(42%) saturate(1090%) hue-rotate(321deg) brightness(92%) contrast(88%);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) .missing-hub-control-button.clear-filter-button img {
+    filter: invert(42%) sepia(42%) saturate(1090%) hue-rotate(321deg) brightness(92%) contrast(88%);
+  }
 }
 
 .missing-review-result {
@@ -1841,6 +1901,15 @@ select:focus {
 
   .clear-filter-button {
     width: 100%;
+  }
+
+  .missing-hub-control-shell {
+    grid-template-columns: minmax(0, 1fr) repeat(3, 46px);
+  }
+
+  .missing-hub-control-button,
+  .missing-hub-control-button.clear-filter-button {
+    width: 46px;
   }
 
   .progress-panel {
