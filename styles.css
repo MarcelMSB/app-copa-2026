@@ -2457,6 +2457,13 @@ select:focus {
   gap: 0.75rem;
 }
 
+.scanner-result-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
 .scanner-heading h2,
 .scanner-result-heading h3 {
   margin: 0;
@@ -2544,8 +2551,10 @@ select:focus {
   gap: 0.75rem;
 }
 
-.scanner-copy-button {
-  width: 100%;
+.scanner-copy-button,
+.scanner-clear-result-button {
+  min-height: 40px;
+  padding-inline: 12px;
 }
 
 .scanner-result-text {

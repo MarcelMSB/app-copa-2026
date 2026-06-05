@@ -4246,6 +4246,7 @@ let tesseractLoaderPromise = null;
 let advancedOcrLoaderPromise = null;
 let advancedOcrEnginePromise = null;
 let scannerCameraStream = null;
+let scannerCaptureCounter = 0;
 const GOOGLE_VISION_API_KEY_STORAGE_KEY = "copa2026GoogleVisionApiKey";
 const HOME_ACTIONS = [
   { id: "showAlbumFormButton", label: "Adicionar álbum" },
@@ -4370,8 +4371,8 @@ function createStickerScannerPanel() {
     </div>
     <div class="scanner-actions">
       <button class="primary-button scanner-camera-button" type="button">Abrir câmera</button>
-      <button class="ghost-button neutral-button scanner-gallery-button" type="button">Escolher imagem</button>
-      <input class="scanner-gallery-input" type="file" accept="image/*" hidden>
+      <button class="ghost-button neutral-button scanner-gallery-button" type="button">Escolher imagens</button>
+      <input class="scanner-gallery-input" type="file" accept="image/*" multiple hidden>
     </div>
     <div class="scanner-cloud-config">
       <label for="scannerGoogleVisionKey">Google Cloud Vision API key</label>
@@ -4385,7 +4386,7 @@ function createStickerScannerPanel() {
     <div class="scanner-camera-view hidden">
       <video class="scanner-video" playsinline muted></video>
       <div class="scanner-camera-actions">
-        <button class="primary-button scanner-capture-button" type="button">Capturar</button>
+        <button class="primary-button scanner-capture-button" type="button">Capturar foto</button>
         <button class="ghost-button neutral-button scanner-stop-camera-button" type="button">Cancelar câmera</button>
       </div>
     </div>
@@ -4396,9 +4397,12 @@ function createStickerScannerPanel() {
     <div class="scanner-result hidden">
       <div class="scanner-result-heading">
         <h3>Figurinhas encontradas</h3>
+        <div class="scanner-result-actions">
+          <button class="ghost-button neutral-button scanner-clear-result-button" type="button">Limpar</button>
+          <button class="ghost-button neutral-button scanner-copy-button" type="button">Copiar</button>
+        </div>
       </div>
       <pre class="scanner-result-text"></pre>
-      <button class="ghost-button neutral-button scanner-copy-button" type="button">Copiar resultado</button>
     </div>
   `;
 
@@ -4426,13 +4430,14 @@ function createStickerScannerPanel() {
     const text = panel.querySelector(".scanner-result-text").innerText;
     await copyText(text, panel.querySelector(".scanner-copy-button"));
   });
+  panel.querySelector(".scanner-clear-result-button").addEventListener("click", () => resetScannerAccumulatedResult(panel));
 
   [galleryInput].forEach((input) => {
     input.addEventListener("change", () => {
-      const file = input.files?.[0];
+      const files = Array.from(input.files || []);
       input.value = "";
-      if (file) {
-        processStickerScannerFile(file, panel);
+      if (files.length) {
+        processStickerScannerFiles(files, panel, { reset: true });
       }
     });
   });
@@ -4447,8 +4452,10 @@ function openStickerScannerPanel() {
 }
 
 function closeStickerScannerPanel() {
-  stopScannerCamera(document.querySelector("#stickerScannerPanel"));
-  document.querySelector("#stickerScannerPanel")?.classList.add("hidden");
+  const panel = document.querySelector("#stickerScannerPanel");
+  stopScannerCamera(panel);
+  resetScannerAccumulatedResult(panel);
+  panel?.classList.add("hidden");
 }
 
 async function openScannerCamera(panel) {
@@ -4493,15 +4500,16 @@ async function captureScannerCameraFrame(panel) {
   const canvas = document.createElement("canvas");
   canvas.width = video.videoWidth;
   canvas.height = video.videoHeight;
-  canvas.getContext("2d").drawImage(video, 0, 0, canvas.width, canvas.height);
+  canvas.getContext("2d", { willReadFrequently: true }).drawImage(video, 0, 0, canvas.width, canvas.height);
+  scannerCaptureCounter += 1;
   const file = await new Promise((resolve) => {
     canvas.toBlob((blob) => {
-      resolve(new File([blob], "figurinha-camera.jpg", { type: "image/jpeg" }));
+      resolve(new File([blob], `figurinha-camera-${scannerCaptureCounter}.jpg`, { type: "image/jpeg" }));
     }, "image/jpeg", 0.95);
   });
 
-  stopScannerCamera(panel);
-  await processStickerScannerFile(file, panel);
+  await processStickerScannerFiles([file], panel, { append: true });
+  status.textContent += " Você pode capturar outra foto ou cancelar a câmera.";
 }
 
 function stopScannerCamera(panel) {
@@ -4863,36 +4871,81 @@ function renderAlbumActionSettings(panel = document) {
   });
 }
 
-async function processStickerScannerFile(file, panel) {
+function resetScannerAccumulatedResult(panel) {
+  if (!panel) {
+    return;
+  }
+
+  panel.scannerFoundCodes = [];
+  panel.querySelector(".scanner-result")?.classList.add("hidden");
+  const resultText = panel.querySelector(".scanner-result-text");
+  if (resultText) {
+    resultText.textContent = "";
+  }
+  const status = panel.querySelector(".scanner-status");
+  if (status) {
+    status.textContent = "Escolha uma foto para iniciar.";
+  }
+}
+
+function updateScannerAccumulatedResult(panel) {
+  const resultBox = panel.querySelector(".scanner-result");
+  const resultText = panel.querySelector(".scanner-result-text");
+  const foundCodes = panel.scannerFoundCodes || [];
+
+  resultText.textContent = foundCodes.length
+    ? buildScannerResultText(foundCodes)
+    : "Nenhuma figurinha reconhecida.";
+  resultBox.classList.remove("hidden");
+}
+
+async function processStickerScannerFiles(files, panel, options = {}) {
   const status = panel.querySelector(".scanner-status");
   const preview = panel.querySelector(".scanner-preview");
   const canvas = panel.querySelector(".scanner-canvas");
-  const resultBox = panel.querySelector(".scanner-result");
-  const resultText = panel.querySelector(".scanner-result-text");
+  const fileList = Array.from(files || []).filter(Boolean);
 
-  resultBox.classList.add("hidden");
-  resultText.textContent = "";
-  status.textContent = "Preparando imagem...";
+  if (!fileList.length) {
+    return;
+  }
+
+  if (options.reset || !Array.isArray(panel.scannerFoundCodes)) {
+    panel.scannerFoundCodes = [];
+  }
+
+  status.textContent = fileList.length === 1
+    ? "Preparando imagem..."
+    : `Preparando ${fileList.length} imagens...`;
 
   try {
-    await drawScannerImage(file, canvas);
-    preview.classList.remove("hidden");
-    status.textContent = "Carregando OCR local...";
+    for (let index = 0; index < fileList.length; index += 1) {
+      const file = fileList[index];
+      const prefix = fileList.length > 1 ? `Imagem ${index + 1}/${fileList.length}: ` : "";
 
-    status.textContent = "Lendo códigos das figurinhas...";
+      status.textContent = `${prefix}preparando imagem...`;
+      await drawScannerImage(file, canvas);
+      preview.classList.remove("hidden");
 
-    const recognizedText = await recognizeStickerScannerWithBestEngine(file, canvas, status);
-    const found = parseStickerCodesFromScannerText(recognizedText);
-    resultText.textContent = found.length
-      ? buildScannerResultText(found)
-      : "Nenhuma figurinha reconhecida.";
-    resultBox.classList.remove("hidden");
-    status.textContent = found.length
-      ? `${found.length} figurinha(s) encontrada(s).`
-      : "Não consegui reconhecer códigos nessa imagem.";
+      status.textContent = `${prefix}lendo códigos das figurinhas...`;
+      const recognizedText = await recognizeStickerScannerWithBestEngine(file, canvas, status, prefix);
+      const found = parseStickerCodesFromScannerText(recognizedText);
+      const foundMap = new Map((panel.scannerFoundCodes || []).map((code) => [code, code]));
+      found.forEach((code) => foundMap.set(code, code));
+      panel.scannerFoundCodes = Array.from(foundMap.values());
+      updateScannerAccumulatedResult(panel);
+    }
+
+    const totalFound = (panel.scannerFoundCodes || []).length;
+    status.textContent = totalFound
+      ? `${totalFound} figurinha(s) encontrada(s) no total.`
+      : "Não consegui reconhecer códigos nessas imagens.";
   } catch (error) {
     status.textContent = error.message || "Não foi possível analisar a imagem.";
   }
+}
+
+async function processStickerScannerFile(file, panel) {
+  return processStickerScannerFiles([file], panel, { reset: true });
 }
 
 function drawScannerImage(file, canvas) {
@@ -4904,7 +4957,7 @@ function drawScannerImage(file, canvas) {
       canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
       canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
 
-      const context = canvas.getContext("2d");
+      const context = canvas.getContext("2d", { willReadFrequently: true });
       context.fillStyle = "#ffffff";
       context.fillRect(0, 0, canvas.width, canvas.height);
       context.filter = "none";
@@ -4917,22 +4970,22 @@ function drawScannerImage(file, canvas) {
   });
 }
 
-async function recognizeStickerScannerWithBestEngine(file, canvas, status) {
+async function recognizeStickerScannerWithBestEngine(file, canvas, status, statusPrefix = "") {
   const texts = [];
   const googleVisionApiKey = getGoogleVisionApiKey();
 
   if (googleVisionApiKey) {
     try {
-      status.textContent = "Enviando imagem ao Google Vision...";
+      status.textContent = `${statusPrefix}enviando imagem ao Google Vision...`;
       const googleVisionText = await recognizeStickerScannerWithGoogleVision(file, googleVisionApiKey);
       texts.push(googleVisionText);
 
       if (parseStickerCodesFromScannerText(googleVisionText).length >= 1) {
-        status.textContent = "Google Vision encontrou codigos. Refinando resultado...";
+        status.textContent = `${statusPrefix}Google Vision encontrou codigos. Refinando resultado...`;
       }
     } catch (error) {
       console.warn("Google Vision OCR failed, falling back to local OCR.", error);
-      status.textContent = "Google Vision falhou. Tentando OCR local...";
+      status.textContent = `${statusPrefix}Google Vision falhou. Tentando OCR local...`;
     }
   }
 
@@ -4940,9 +4993,9 @@ async function recognizeStickerScannerWithBestEngine(file, canvas, status) {
     return texts.join("\n");
   }
 
-  status.textContent = "Carregando OCR local...";
+  status.textContent = `${statusPrefix}carregando OCR local...`;
   const Tesseract = await loadTesseractClient();
-  const tesseractText = await recognizeStickerScannerText(Tesseract, canvas, status);
+  const tesseractText = await recognizeStickerScannerText(Tesseract, canvas, status, statusPrefix);
 
   texts.push(tesseractText);
 
@@ -5148,7 +5201,7 @@ function appendAdvancedOcrTextPieces(pieces, result) {
   }
 }
 
-async function recognizeStickerScannerText(Tesseract, canvas, status) {
+async function recognizeStickerScannerText(Tesseract, canvas, status, statusPrefix = "") {
   const texts = [];
   const nativeText = await recognizeWithNativeTextDetector(canvas);
   let currentLabel = "OCR";
@@ -5190,7 +5243,7 @@ async function recognizeStickerScannerText(Tesseract, canvas, status) {
     for (let index = 0; index < variants.length; index += 1) {
       const variant = variants[index];
       currentLabel = `${index + 1}/${variants.length} ${variant.label}`;
-      status.textContent = `Lendo imagem (${currentLabel})...`;
+      status.textContent = `${statusPrefix}lendo imagem (${currentLabel})...`;
 
       await worker.setParameters({
         tessedit_pageseg_mode: /^(etiqueta|janela)/.test(variant.label) ? "7" : "11"
@@ -5289,7 +5342,7 @@ function createScannerCropCanvases(source) {
       canvas.width = Math.round(sw * scale);
       canvas.height = Math.round(sh * scale);
 
-      const context = canvas.getContext("2d");
+      const context = canvas.getContext("2d", { willReadFrequently: true });
       context.fillStyle = "#ffffff";
       context.fillRect(0, 0, canvas.width, canvas.height);
       context.filter = "grayscale(1) contrast(2.05) brightness(1.12)";
@@ -5456,7 +5509,7 @@ function createScannerLabelCanvasesFromBox(source, box, index) {
     canvas.width = Math.round(sw * variant.scale);
     canvas.height = Math.round(sh * variant.scale);
 
-    const context = canvas.getContext("2d");
+    const context = canvas.getContext("2d", { willReadFrequently: true });
     context.fillStyle = "#ffffff";
     context.fillRect(0, 0, canvas.width, canvas.height);
     context.filter = "grayscale(1) contrast(2.35) brightness(1.2)";
@@ -5559,7 +5612,7 @@ function createScannerWindowCanvas(source, box, index) {
   canvas.width = Math.round(sw * scale);
   canvas.height = Math.round(sh * scale);
 
-  const context = canvas.getContext("2d");
+  const context = canvas.getContext("2d", { willReadFrequently: true });
   context.fillStyle = "#ffffff";
   context.fillRect(0, 0, canvas.width, canvas.height);
   context.filter = "grayscale(1) contrast(2.6) brightness(1.18)";
