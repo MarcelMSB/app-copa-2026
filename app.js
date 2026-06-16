@@ -343,6 +343,7 @@ const els = {
   whatsappVisibleMissingButton: document.querySelector("#whatsappVisibleMissingButton"),
   missingHubClearFilterButton: document.querySelector("#missingHubClearFilterButton"),
   missingPickPanel: document.querySelector("#missingPickPanel"),
+  missingPickTitle: document.querySelector("#missingPickTitle"),
   missingPickResult: document.querySelector("#missingPickResult"),
   clearMissingPicksButton: document.querySelector("#clearMissingPicksButton"),
   copyMissingPicksButton: document.querySelector("#copyMissingPicksButton"),
@@ -364,6 +365,7 @@ const els = {
   wishlistImportResult: document.querySelector("#wishlistImportResult"),
   closeWishlistImportButton: document.querySelector("#closeWishlistImportButton"),
   wishlistPickPanel: document.querySelector("#wishlistPickPanel"),
+  wishlistPickTitle: document.querySelector("#wishlistPickTitle"),
   wishlistPickResult: document.querySelector("#wishlistPickResult"),
   clearWishlistPicksButton: document.querySelector("#clearWishlistPicksButton"),
   copyWishlistPicksButton: document.querySelector("#copyWishlistPicksButton"),
@@ -1373,9 +1375,10 @@ function getVisibleWishlistItems() {
 function buildWishlistPicksText() {
   const pickMap = getWishlistPickMap();
   const items = state.wishlistPicks.map(normalizeWishlistItem).filter((item) => item?.id && pickMap.has(item.id));
+  const totalMarked = items.reduce((sum, item) => sum + (pickMap.get(item.id)?.quantity || 0), 0);
   const lines = [
     "Figurinhas App",
-    "Lista de desejos marcada",
+    `Lista de desejos marcada (${totalMarked})`,
     ""
   ];
 
@@ -3313,9 +3316,10 @@ function renderDuplicatesScreen() {
 function buildMissingPicksText() {
   const pickMap = getMissingPickMap();
   const items = getDuplicateItems().filter((item) => (pickMap.get(item.id)?.quantity || 0) > 0);
+  const totalMarked = items.reduce((sum, item) => sum + (pickMap.get(item.id)?.quantity || 0), 0);
   const lines = [
     "Figurinhas App",
-    "Figurinhas marcadas",
+    `Figurinhas marcadas (${totalMarked})`,
     ""
   ];
 
@@ -3631,7 +3635,9 @@ async function shareVisibleMissingHub(useWhatsApp = false) {
 function renderMissingPickPanel() {
   const pickMap = getMissingPickMap();
   const items = getDuplicateItems().filter((item) => (pickMap.get(item.id)?.quantity || 0) > 0);
+  const totalMarked = items.reduce((sum, item) => sum + (pickMap.get(item.id)?.quantity || 0), 0);
 
+  els.missingPickTitle.textContent = `Figurinhas marcadas (${totalMarked})`;
   els.missingPickPanel.classList.toggle("hidden", !items.length);
   els.missingPickResult.textContent = "";
   if (!items.length) return;
@@ -3866,7 +3872,9 @@ function renderMissingHubScreen() {
 function renderWishlistPickPanel() {
   const pickMap = getWishlistPickMap();
   const items = state.wishlistPicks.map(normalizeWishlistItem).filter((item) => item?.id && pickMap.has(item.id));
+  const totalMarked = items.reduce((sum, item) => sum + (pickMap.get(item.id)?.quantity || 0), 0);
 
+  els.wishlistPickTitle.textContent = `Figurinhas marcadas (${totalMarked})`;
   els.wishlistPickPanel.classList.toggle("hidden", !items.length);
   els.wishlistPickResult.textContent = "";
   if (!items.length) return;
