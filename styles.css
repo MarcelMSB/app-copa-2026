@@ -1392,6 +1392,18 @@ select:focus {
   border-color: var(--green);
 }
 
+.text-check-mode-field {
+  display: grid;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 0.86rem;
+  font-weight: 800;
+}
+
+.text-check-mode-field select {
+  width: 100%;
+}
+
 .text-check-output {
   display: grid;
   gap: 10px;

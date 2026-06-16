@@ -1,12 +1,15 @@
 const DB_NAME = "copa-2026-album-db";
-const DB_VERSION = 4;
+const DB_VERSION = 5;
 const ALBUM_STORE = "albums";
 const STICKER_STORE = "stickers";
 const DUPLICATE_STORE = "duplicates";
 const MISSING_PICK_STORE = "missingPicks";
+const WISHLIST_STORE = "wishlist";
+const WISHLIST_PICK_STORE = "wishlistPicks";
 const VIEW_MODE_STORAGE_KEY = "copa-2026-view-mode";
 const THEME_STORAGE_KEY = "copa-2026-theme";
 const HOME_ACTION_VISIBILITY_STORAGE_KEY = "copa-2026-home-actions";
+const HOME_ACTION_KNOWN_STORAGE_KEY = "copa-2026-home-actions-known";
 const ALBUM_ACTION_VISIBILITY_STORAGE_KEY = "copa-2026-album-actions";
 const DEFAULT_VIEW_MODE = "group";
 const STICKER_TYPE_LABELS = {
@@ -216,6 +219,7 @@ const ITEMS_BY_TEAM = new Map(TEAMS.map((team) => [
   COLLECTION_ITEMS.filter((item) => item.teamCode === team.code)
 ]));
 const TEAM_SORT_INDEX = new Map(TEAMS.map((team, index) => [team.code, index]));
+const ITEM_SORT_INDEX = new Map(COLLECTION_ITEMS.map((item, index) => [item.id, index]));
 
 applySavedTheme();
 
@@ -226,9 +230,12 @@ const state = {
   stickers: [],
   duplicates: [],
   missingPicks: [],
+  wishlist: [],
+  wishlistPicks: [],
   activeAlbum: null,
   duplicatesActive: false,
   missingHubActive: false,
+  wishlistActive: false,
   missingHubSessionPicks: new Map(),
   missingFilterPickerKind: null,
   missingFilterPickerItems: [],
@@ -253,6 +260,7 @@ const els = {
   stickersScreen: document.querySelector("#stickersScreen"),
   duplicatesScreen: document.querySelector("#duplicatesScreen"),
   missingHubScreen: document.querySelector("#missingHubScreen"),
+  wishlistScreen: document.querySelector("#wishlistScreen"),
   albumCreateActions: document.querySelector("#albumCreateActions"),
   showAlbumFormButton: document.querySelector("#showAlbumFormButton"),
   cancelAlbumFormButton: document.querySelector("#cancelAlbumFormButton"),
@@ -264,6 +272,7 @@ const els = {
   importAlbumInput: document.querySelector("#importAlbumInput"),
   compareModeButton: document.querySelector("#compareModeButton"),
   duplicatesButton: document.querySelector("#duplicatesButton"),
+  wishlistButton: document.querySelector("#wishlistButton"),
   missingHubButton: document.querySelector("#missingHubButton"),
   compareActions: document.querySelector("#compareActions"),
   compareSelectionMeta: document.querySelector("#compareSelectionMeta"),
@@ -343,6 +352,23 @@ const els = {
   closeMissingHubListCheckButton: document.querySelector("#closeMissingHubListCheckButton"),
   missingHubResult: document.querySelector("#missingHubResult"),
   emptyMissingHub: document.querySelector("#emptyMissingHub"),
+  wishlistSummary: document.querySelector("#wishlistSummary"),
+  wishlistSearchInput: document.querySelector("#wishlistSearchInput"),
+  wishlistImportButton: document.querySelector("#wishlistImportButton"),
+  wishlistListCheckButton: document.querySelector("#wishlistListCheckButton"),
+  wishlistClearSearchButton: document.querySelector("#wishlistClearSearchButton"),
+  wishlistListCheckPanel: document.querySelector("#wishlistListCheckPanel"),
+  wishlistListCheckResult: document.querySelector("#wishlistListCheckResult"),
+  closeWishlistListCheckButton: document.querySelector("#closeWishlistListCheckButton"),
+  wishlistImportPanel: document.querySelector("#wishlistImportPanel"),
+  wishlistImportResult: document.querySelector("#wishlistImportResult"),
+  closeWishlistImportButton: document.querySelector("#closeWishlistImportButton"),
+  wishlistPickPanel: document.querySelector("#wishlistPickPanel"),
+  wishlistPickResult: document.querySelector("#wishlistPickResult"),
+  clearWishlistPicksButton: document.querySelector("#clearWishlistPicksButton"),
+  copyWishlistPicksButton: document.querySelector("#copyWishlistPicksButton"),
+  wishlistResult: document.querySelector("#wishlistResult"),
+  emptyWishlist: document.querySelector("#emptyWishlist"),
   duplicateFilterToggle: document.querySelector("#duplicateFilterToggle"),
   duplicateFilterPanel: document.querySelector("#duplicateFilterPanel"),
   duplicateListCheckButton: document.querySelector("#duplicateListCheckButton"),
@@ -660,6 +686,36 @@ function openDatabase() {
 
       if (!missingPickStore.indexNames.contains("teamCode")) {
         missingPickStore.createIndex("teamCode", "teamCode", { unique: false });
+      }
+
+      let wishlistStore;
+      if (!db.objectStoreNames.contains(WISHLIST_STORE)) {
+        wishlistStore = db.createObjectStore(WISHLIST_STORE, { keyPath: "id" });
+      } else {
+        wishlistStore = request.transaction.objectStore(WISHLIST_STORE);
+      }
+
+      if (!wishlistStore.indexNames.contains("itemId")) {
+        wishlistStore.createIndex("itemId", "itemId", { unique: true });
+      }
+
+      if (!wishlistStore.indexNames.contains("teamCode")) {
+        wishlistStore.createIndex("teamCode", "teamCode", { unique: false });
+      }
+
+      let wishlistPickStore;
+      if (!db.objectStoreNames.contains(WISHLIST_PICK_STORE)) {
+        wishlistPickStore = db.createObjectStore(WISHLIST_PICK_STORE, { keyPath: "id" });
+      } else {
+        wishlistPickStore = request.transaction.objectStore(WISHLIST_PICK_STORE);
+      }
+
+      if (!wishlistPickStore.indexNames.contains("itemId")) {
+        wishlistPickStore.createIndex("itemId", "itemId", { unique: true });
+      }
+
+      if (!wishlistPickStore.indexNames.contains("teamCode")) {
+        wishlistPickStore.createIndex("teamCode", "teamCode", { unique: false });
       }
     };
 
@@ -1173,6 +1229,209 @@ async function clearMissingPicks() {
   savePulse();
 }
 
+function createWishlistRecord(item, quantity = 1, existing = null) {
+  return {
+    id: item.id,
+    itemId: item.id,
+    label: item.label,
+    number: item.number,
+    teamCode: item.teamCode,
+    teamName: item.teamName,
+    groupId: item.groupId,
+    groupName: item.groupName,
+    stickerType: item.stickerType,
+    stickerTypeLabel: item.stickerTypeLabel,
+    quantity: Math.max(1, Number(quantity) || 1),
+    createdAt: existing?.createdAt || Date.now(),
+    updatedAt: Date.now()
+  };
+}
+
+function createWishlistPickRecord(item, quantity = item.quantity || 1) {
+  return {
+    ...createWishlistRecord(item, quantity)
+  };
+}
+
+async function loadWishlist() {
+  state.wishlist = await getAll(WISHLIST_STORE);
+  state.wishlistPicks = await getAll(WISHLIST_PICK_STORE);
+  renderWishlistScreen();
+}
+
+function getWishlistItemMap() {
+  return new Map(state.wishlist.filter((item) => item.itemId).map((item) => [item.itemId, item]));
+}
+
+function getWishlistPickMap() {
+  return new Map(state.wishlistPicks.filter((item) => item.itemId).map((item) => [item.itemId, item]));
+}
+
+function normalizeWishlistItem(record) {
+  const base = ITEM_BY_ID.get(record.itemId || record.id);
+  return base ? { ...base, ...record, id: base.id, itemId: base.id } : record;
+}
+
+async function importWishlistFromText(text, mode = "replace") {
+  const records = parseWishlistImportList(text);
+  const existingById = getWishlistItemMap();
+  const shouldReplace = mode !== "merge";
+
+  if (shouldReplace) {
+    await clearStore(WISHLIST_STORE);
+    await clearStore(WISHLIST_PICK_STORE);
+  }
+
+  for (const record of records) {
+    const existing = shouldReplace ? null : existingById.get(record.item.id);
+    const existingQuantity = existing ? Math.max(1, Number(existing.quantity) || 1) : 0;
+    const nextQuantity = existingQuantity + record.quantity;
+    await putItem(WISHLIST_STORE, createWishlistRecord(record.item, shouldReplace ? record.quantity : nextQuantity, existing));
+  }
+
+  if (shouldReplace) {
+    state.wishlist = records.map((record) => createWishlistRecord(record.item, record.quantity));
+    state.wishlistPicks = [];
+  } else {
+    state.wishlist = await getAll(WISHLIST_STORE);
+    state.wishlistPicks = await getAll(WISHLIST_PICK_STORE);
+  }
+
+  renderWishlistScreen();
+  savePulse();
+  return {
+    recognized: records.length,
+    added: shouldReplace ? records.length : records.filter((record) => !existingById.has(record.item.id)).length,
+    updated: shouldReplace ? 0 : records.filter((record) => existingById.has(record.item.id)).length,
+    total: state.wishlist.length,
+    mode: shouldReplace ? "replace" : "merge"
+  };
+}
+
+async function addWishlistPick(item) {
+  const wishlistRecord = getWishlistItemMap().get(item.id);
+  if (!wishlistRecord) return;
+
+  const currentQuantity = Math.max(1, Number(wishlistRecord.quantity) || 1);
+  const currentPickQuantity = getWishlistPickMap().get(item.id)?.quantity || 0;
+  const nextWishlistQuantity = currentQuantity - 1;
+
+  if (nextWishlistQuantity > 0) {
+    await putItem(WISHLIST_STORE, createWishlistRecord(item, nextWishlistQuantity, wishlistRecord));
+  } else {
+    await deleteItem(WISHLIST_STORE, item.id);
+  }
+
+  await putItem(WISHLIST_PICK_STORE, createWishlistPickRecord(item, currentPickQuantity + 1));
+  await loadWishlist();
+  savePulse();
+}
+
+async function removeWishlistPick(item) {
+  const pickRecord = getWishlistPickMap().get(item.id);
+  const currentPickQuantity = pickRecord?.quantity || 0;
+  const currentWishlistRecord = getWishlistItemMap().get(item.id);
+  const currentWishlistQuantity = currentWishlistRecord?.quantity || 0;
+
+  if (currentPickQuantity > 1) {
+    await putItem(WISHLIST_PICK_STORE, createWishlistPickRecord(item, currentPickQuantity - 1));
+  } else {
+    await deleteItem(WISHLIST_PICK_STORE, item.id);
+  }
+
+  await putItem(WISHLIST_STORE, createWishlistRecord(item, currentWishlistQuantity + 1, currentWishlistRecord));
+  await loadWishlist();
+  savePulse();
+}
+
+async function clearWishlistPicks() {
+  await clearStore(WISHLIST_PICK_STORE);
+  state.wishlistPicks = [];
+  renderWishlistScreen();
+  savePulse();
+}
+
+function getVisibleWishlistItems() {
+  const search = els.wishlistSearchInput?.value.trim().toLowerCase() || "";
+
+  return state.wishlist
+    .map(normalizeWishlistItem)
+    .filter((item) => item?.id && (item.quantity || 0) > 0)
+    .filter((item) => {
+      if (!search) return true;
+      const haystack = [
+        item.label,
+        item.teamCode,
+        item.teamName,
+        item.groupName,
+        String(item.number)
+      ].join(" ").toLowerCase();
+      return haystack.includes(search);
+    });
+}
+
+function buildWishlistPicksText() {
+  const pickMap = getWishlistPickMap();
+  const items = state.wishlistPicks.map(normalizeWishlistItem).filter((item) => item?.id && pickMap.has(item.id));
+  const lines = [
+    "Figurinhas App",
+    "Lista de desejos marcada",
+    ""
+  ];
+
+  if (!items.length) {
+    lines.push("Nenhuma figurinha marcada.");
+    return lines.join("\n");
+  }
+
+  appendCompactItemLines(lines, items);
+  return lines.join("\n").trim();
+}
+
+async function copyWishlistPicks() {
+  const text = buildWishlistPicksText();
+
+  if (navigator.clipboard) {
+    await navigator.clipboard.writeText(text);
+    savePulse();
+    return;
+  }
+
+  window.prompt("Copie as figurinhas marcadas:", text);
+}
+
+function getWishlistListCheckItems(parsedItemIds) {
+  return sortItemsByCollectionOrder(
+    state.wishlist
+      .map(normalizeWishlistItem)
+      .filter((item) => item?.id && parsedItemIds.has(item.id) && (item.quantity || 0) > 0)
+  );
+}
+
+function buildWishlistListCheckText(items) {
+  const lines = [
+    "Figurinhas App",
+    "Desejos da lista",
+    ""
+  ];
+
+  if (!items.length) {
+    lines.push("Nenhuma figurinha da lista está nos desejos pendentes.");
+    return lines.join("\n");
+  }
+
+  appendCompactItemLines(lines, items);
+  return lines.join("\n").trim();
+}
+
+async function addWishlistListCheckItemsToPicks(items) {
+  if (!items.length) return;
+
+  for (const item of items) {
+    await addWishlistPick(item);
+  }
+}
+
 function getMissingHubAlbumIds() {
   const selectedAlbumIds = Array.from(els.missingHubAlbumFilter.selectedOptions)
     .map((option) => option.value)
@@ -1461,6 +1720,14 @@ function getSortedTeamGroups(grouped) {
     const orderA = TEAM_SORT_INDEX.get(teamCodeA) ?? Number.MAX_SAFE_INTEGER;
     const orderB = TEAM_SORT_INDEX.get(teamCodeB) ?? Number.MAX_SAFE_INTEGER;
     return orderA - orderB || teamCodeA.localeCompare(teamCodeB);
+  });
+}
+
+function sortItemsByCollectionOrder(items) {
+  return [...items].sort((itemA, itemB) => {
+    const orderA = ITEM_SORT_INDEX.get(itemA.id) ?? Number.MAX_SAFE_INTEGER;
+    const orderB = ITEM_SORT_INDEX.get(itemB.id) ?? Number.MAX_SAFE_INTEGER;
+    return orderA - orderB || itemA.label.localeCompare(itemB.label);
   });
 }
 
@@ -1955,6 +2222,39 @@ function parseDuplicateImportList(text) {
       tokens.forEach((token) => {
         const item = itemByNumber.get(token);
         if (item) records.set(item.id, { item, quantity });
+      });
+    });
+  });
+
+  return Array.from(records.values());
+}
+
+function parseWishlistImportList(text) {
+  const records = new Map();
+
+  text.split(/\r?\n/).forEach((line) => {
+    const teamMatch = extractDuplicateTeamCodeFromPastedLine(line);
+    if (!teamMatch) return;
+
+    const items = ITEMS_BY_TEAM.get(teamMatch.teamCode) || [];
+    const itemByNumber = new Map(items.map((item) => [normalizePastedStickerToken(String(item.number)), item]));
+    const valueText = line.slice(teamMatch.valueStart);
+
+    valueText.split(",").forEach((part) => {
+      const quantityMatch = part.match(/\((\d+)\s*x\)/i);
+      const quantity = quantityMatch ? Math.max(1, Number(quantityMatch[1]) || 1) : 1;
+      const cleanPart = part.replace(/\([^)]*\)/g, "");
+      const tokens = getPastedStickerTokens(cleanPart, teamMatch.teamCode);
+
+      tokens.forEach((token) => {
+        const item = itemByNumber.get(token);
+        if (!item) return;
+
+        const current = records.get(item.id);
+        records.set(item.id, {
+          item,
+          quantity: (current?.quantity || 0) + quantity
+        });
       });
     });
   });
@@ -2818,11 +3118,17 @@ async function openAlbum(albumId) {
   state.activeAlbum = state.albums.find((album) => album.id === albumId);
   if (!state.activeAlbum) return;
 
+  state.duplicatesActive = false;
+  state.missingHubActive = false;
+  state.wishlistActive = false;
   setViewMode(getSavedViewMode());
   state.selectedGroupId = null;
   state.selectedTeamCode = null;
   els.albumsScreen.classList.add("hidden");
   els.stickersScreen.classList.remove("hidden");
+  els.duplicatesScreen.classList.add("hidden");
+  els.missingHubScreen.classList.add("hidden");
+  els.wishlistScreen.classList.add("hidden");
   els.backButton.classList.remove("hidden");
   await loadStickers(albumId);
 }
@@ -2838,12 +3144,16 @@ function closeAlbum() {
 
 async function openDuplicatesScreen() {
   state.duplicatesActive = true;
+  state.missingHubActive = false;
+  state.wishlistActive = false;
   state.activeAlbum = null;
   setCompareMode(false);
   els.comparePanel.classList.add("hidden");
   discardMissingReview();
   els.albumsScreen.classList.add("hidden");
   els.stickersScreen.classList.add("hidden");
+  els.missingHubScreen.classList.add("hidden");
+  els.wishlistScreen.classList.add("hidden");
   els.duplicatesScreen.classList.remove("hidden");
   els.backButton.classList.remove("hidden");
   await loadDuplicates();
@@ -2861,6 +3171,8 @@ function closeDuplicatesScreen() {
 
 async function openMissingHubScreen() {
   state.missingHubActive = true;
+  state.duplicatesActive = false;
+  state.wishlistActive = false;
   state.activeAlbum = null;
   state.missingHubSessionPicks = new Map();
   setCompareMode(false);
@@ -2870,6 +3182,7 @@ async function openMissingHubScreen() {
   els.albumsScreen.classList.add("hidden");
   els.stickersScreen.classList.add("hidden");
   els.duplicatesScreen.classList.add("hidden");
+  els.wishlistScreen.classList.add("hidden");
   els.missingHubScreen.classList.remove("hidden");
   els.backButton.classList.remove("hidden");
   await loadMissingPicks();
@@ -2880,6 +3193,33 @@ function closeMissingHubScreen() {
   state.missingHubActive = false;
   state.missingHubSessionPicks = new Map();
   els.missingHubScreen.classList.add("hidden");
+  els.albumsScreen.classList.remove("hidden");
+  els.backButton.classList.add("hidden");
+  loadAlbums();
+}
+
+async function openWishlistScreen() {
+  state.wishlistActive = true;
+  state.duplicatesActive = false;
+  state.missingHubActive = false;
+  state.activeAlbum = null;
+  setCompareMode(false);
+  els.comparePanel.classList.add("hidden");
+  discardMissingReview();
+  els.albumsScreen.classList.add("hidden");
+  els.stickersScreen.classList.add("hidden");
+  els.duplicatesScreen.classList.add("hidden");
+  els.missingHubScreen.classList.add("hidden");
+  els.wishlistScreen.classList.remove("hidden");
+  els.backButton.classList.remove("hidden");
+  await loadWishlist();
+}
+
+function closeWishlistScreen() {
+  closeWishlistListCheck();
+  closeWishlistImport();
+  state.wishlistActive = false;
+  els.wishlistScreen.classList.add("hidden");
   els.albumsScreen.classList.remove("hidden");
   els.backButton.classList.add("hidden");
   loadAlbums();
@@ -3523,6 +3863,301 @@ function renderMissingHubScreen() {
   els.emptyMissingHub.classList.toggle("hidden", aggregates.length > 0);
 }
 
+function renderWishlistPickPanel() {
+  const pickMap = getWishlistPickMap();
+  const items = state.wishlistPicks.map(normalizeWishlistItem).filter((item) => item?.id && pickMap.has(item.id));
+
+  els.wishlistPickPanel.classList.toggle("hidden", !items.length);
+  els.wishlistPickResult.textContent = "";
+  if (!items.length) return;
+
+  const section = document.createElement("section");
+  section.className = "missing-pick-column";
+  const grouped = groupItemsByTeam(items);
+
+  getSortedTeamGroups(grouped).forEach(([teamCode, teamItems]) => {
+    const group = document.createElement("div");
+    group.className = "compare-team missing-pick-team";
+    group.append(createTeamTitleElement(teamCode));
+
+    const list = document.createElement("div");
+    list.className = "missing-hub-list";
+    sortItemsByCollectionOrder(teamItems).forEach((item) => {
+      const pill = document.createElement("button");
+      pill.type = "button";
+      pill.className = "missing-hub-pill selected";
+      pill.setAttribute("aria-label", `Desmarcar ${item.label}`);
+
+      const label = document.createElement("span");
+      label.textContent = formatMissingShareNumber(item);
+      pill.append(label);
+
+      if ((item.quantity || 1) > 1) {
+        const quantityLabel = document.createElement("strong");
+        quantityLabel.textContent = `${item.quantity}x`;
+        pill.append(quantityLabel);
+      }
+
+      pill.addEventListener("click", () => removeWishlistPick(item));
+      list.append(pill);
+    });
+
+    group.append(list);
+    section.append(group);
+  });
+
+  els.wishlistPickResult.append(section);
+}
+
+function createWishlistItemButton(item) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "missing-hub-pill";
+  button.setAttribute("aria-label", `Marcar ${item.label}`);
+
+  const label = document.createElement("span");
+  label.textContent = formatMissingShareNumber(item);
+  button.append(label);
+
+  if ((item.quantity || 1) > 1) {
+    const quantity = document.createElement("strong");
+    quantity.textContent = `${item.quantity}x`;
+    button.append(quantity);
+  }
+
+  button.addEventListener("click", () => addWishlistPick(item));
+  return button;
+}
+
+function renderWishlistList(items) {
+  els.wishlistResult.textContent = "";
+  const grouped = groupItemsByTeam(items);
+
+  getSortedTeamGroups(grouped).forEach(([teamCode, teamItems]) => {
+    const section = document.createElement("section");
+    section.className = "compare-team missing-hub-team";
+    section.append(createTeamTitleElement(teamCode));
+
+    const meta = document.createElement("p");
+    meta.className = "compare-count missing-hub-team-meta";
+    meta.textContent = teamItems.length === 1 ? "1 desejo" : `${teamItems.length} desejos`;
+    section.append(meta);
+
+    const list = document.createElement("div");
+    list.className = "missing-hub-list";
+    sortItemsByCollectionOrder(teamItems).forEach((item) => list.append(createWishlistItemButton(item)));
+    section.append(list);
+    els.wishlistResult.append(section);
+  });
+}
+
+function renderWishlistImportPanel() {
+  els.wishlistImportResult.textContent = "";
+
+  const section = document.createElement("section");
+  section.className = "compare-column text-check-column";
+
+  const heading = document.createElement("h3");
+  heading.textContent = "Cole a lista de figurinhas";
+  section.append(heading);
+
+  const textarea = document.createElement("textarea");
+  textarea.className = "text-check-input";
+  textarea.rows = 10;
+  textarea.placeholder = "FWC: 7\nMEX: 2, 5, 6\nBRA 🇧🇷: 1, 15\nCC 🥤: 8, 9";
+  section.append(textarea);
+
+  const modeLabel = document.createElement("label");
+  modeLabel.className = "text-check-mode-field";
+  modeLabel.textContent = "Modo de importação";
+
+  const modeSelect = document.createElement("select");
+  modeSelect.innerHTML = `
+    <option value="merge">Mesclar com a lista atual</option>
+    <option value="replace">Importar e substituir a lista</option>
+  `;
+  modeLabel.append(modeSelect);
+  section.append(modeLabel);
+
+  const actions = document.createElement("div");
+  actions.className = "missing-review-actions";
+
+  const importButton = document.createElement("button");
+  importButton.type = "button";
+  importButton.className = "primary-button";
+  importButton.textContent = "Importar lista";
+
+  const cancelButton = document.createElement("button");
+  cancelButton.type = "button";
+  cancelButton.className = "ghost-button neutral-button";
+  cancelButton.textContent = "Cancelar";
+  cancelButton.addEventListener("click", closeWishlistImport);
+
+  actions.append(importButton, cancelButton);
+  section.append(actions);
+
+  const output = document.createElement("p");
+  output.className = "compare-count";
+  section.append(output);
+
+  importButton.addEventListener("click", async () => {
+    importButton.disabled = true;
+
+    try {
+      const result = await importWishlistFromText(textarea.value, modeSelect.value);
+      output.textContent = result.recognized
+        ? result.mode === "merge"
+          ? `${result.added} nova(s) figurinha(s) adicionada(s), ${result.updated} atualizada(s). Lista com ${result.total} no total.`
+          : `${result.recognized} figurinha(s) importada(s) para a lista de desejos.`
+        : "Nenhuma figurinha reconhecida na lista.";
+    } finally {
+      importButton.disabled = false;
+    }
+  });
+
+  els.wishlistImportResult.append(section);
+}
+
+function openWishlistImport() {
+  closeWishlistListCheck();
+  renderWishlistImportPanel();
+  els.wishlistImportPanel.classList.remove("hidden");
+  els.wishlistImportResult.querySelector(".text-check-input")?.focus({ preventScroll: true });
+}
+
+function closeWishlistImport() {
+  els.wishlistImportPanel.classList.add("hidden");
+  els.wishlistImportResult.textContent = "";
+}
+
+function renderWishlistListCheckResult(output, items, parsedItemIds) {
+  output.textContent = "";
+
+  const resultText = buildWishlistListCheckText(items);
+  const count = document.createElement("p");
+  count.className = "compare-count";
+  count.textContent = items.length
+    ? `${items.length} figurinha(s) da lista estão nos desejos pendentes.`
+    : "Nenhuma figurinha da lista está nos desejos pendentes.";
+
+  const result = document.createElement("pre");
+  result.className = "text-check-result-text";
+  result.textContent = resultText;
+
+  const actions = document.createElement("div");
+  actions.className = "missing-review-actions";
+
+  const copyButton = document.createElement("button");
+  copyButton.type = "button";
+  copyButton.className = "ghost-button neutral-button";
+  copyButton.textContent = "Copiar resultado";
+  copyButton.addEventListener("click", async () => {
+    if (navigator.clipboard) {
+      await navigator.clipboard.writeText(resultText);
+      savePulse();
+      return;
+    }
+
+    window.prompt("Copie o resultado:", resultText);
+  });
+  actions.append(copyButton);
+
+  if (items.length) {
+    const markButton = document.createElement("button");
+    markButton.type = "button";
+    markButton.className = "primary-button";
+    markButton.textContent = "Marcar resultado";
+    markButton.addEventListener("click", async () => {
+      markButton.disabled = true;
+      await addWishlistListCheckItemsToPicks(items);
+      const refreshedItems = getWishlistListCheckItems(parsedItemIds);
+      renderWishlistListCheckResult(output, refreshedItems, parsedItemIds);
+    });
+    actions.append(markButton);
+  }
+
+  output.append(count, result, actions);
+}
+
+function renderWishlistListCheckPanel() {
+  els.wishlistListCheckResult.textContent = "";
+
+  const section = document.createElement("section");
+  section.className = "compare-column text-check-column";
+
+  const heading = document.createElement("h3");
+  heading.textContent = "Cole a lista para conferir";
+  section.append(heading);
+
+  const textarea = document.createElement("textarea");
+  textarea.className = "text-check-input";
+  textarea.rows = 10;
+  textarea.placeholder = "MEX: 2, 5, 6\nBRA 🇧🇷: 1, 15\nCC 🥤: 8, 9";
+  section.append(textarea);
+
+  const actions = document.createElement("div");
+  actions.className = "missing-review-actions";
+
+  const checkButton = document.createElement("button");
+  checkButton.type = "button";
+  checkButton.className = "primary-button";
+  checkButton.textContent = "Verificar lista";
+
+  const cancelButton = document.createElement("button");
+  cancelButton.type = "button";
+  cancelButton.className = "ghost-button neutral-button";
+  cancelButton.textContent = "Cancelar";
+  cancelButton.addEventListener("click", closeWishlistListCheck);
+
+  actions.append(checkButton, cancelButton);
+  section.append(actions);
+
+  const output = document.createElement("div");
+  output.className = "text-check-output";
+  section.append(output);
+
+  checkButton.addEventListener("click", () => {
+    const parsedItemIds = parseDuplicatePastedStickerList(textarea.value);
+    const items = getWishlistListCheckItems(parsedItemIds);
+    renderWishlistListCheckResult(output, items, parsedItemIds);
+  });
+
+  els.wishlistListCheckResult.append(section);
+}
+
+function openWishlistListCheck() {
+  closeWishlistImport();
+  renderWishlistListCheckPanel();
+  els.wishlistListCheckPanel.classList.remove("hidden");
+  els.wishlistListCheckPanel.scrollIntoView({ behavior: "smooth", block: "start" });
+  els.wishlistListCheckResult.querySelector(".text-check-input")?.focus({ preventScroll: true });
+}
+
+function closeWishlistListCheck() {
+  els.wishlistListCheckPanel.classList.add("hidden");
+  els.wishlistListCheckResult.textContent = "";
+}
+
+function renderWishlistScreen() {
+  if (!state.wishlistActive) return;
+
+  const totalCount = state.wishlist.length;
+  const markedCount = state.wishlistPicks.length;
+  const visibleItems = getVisibleWishlistItems();
+  const searchActive = Boolean(els.wishlistSearchInput?.value.trim());
+
+  els.wishlistSummary.textContent = `${totalCount} na lista - ${markedCount} marcadas`;
+  els.wishlistClearSearchButton.classList.toggle("hidden", !searchActive);
+  renderWishlistPickPanel();
+  renderWishlistList(visibleItems);
+
+  const hasAnyWishlist = totalCount > 0;
+  els.emptyWishlist.textContent = hasAnyWishlist
+    ? "Nenhuma figurinha pendente com essa busca."
+    : "Importe uma lista para montar seus desejos.";
+  els.emptyWishlist.classList.toggle("hidden", visibleItems.length > 0);
+}
+
 function renderStickerScreen() {
   const album = state.activeAlbum;
   if (!album) return;
@@ -3928,6 +4563,11 @@ function registerEvents() {
   els.finishReorderButton.addEventListener("click", () => setReorderMode(false));
 
   els.backButton.addEventListener("click", () => {
+    if (state.wishlistActive) {
+      closeWishlistScreen();
+      return;
+    }
+
     if (state.missingHubActive) {
       closeMissingHubScreen();
       return;
@@ -3941,6 +4581,7 @@ function registerEvents() {
     closeAlbum();
   });
   els.duplicatesButton.addEventListener("click", openDuplicatesScreen);
+  els.wishlistButton.addEventListener("click", openWishlistScreen);
   els.missingHubButton.addEventListener("click", openMissingHubScreen);
   els.shareCollectionButton.addEventListener("click", async () => {
     try {
@@ -4088,6 +4729,25 @@ function registerEvents() {
     el.addEventListener("input", renderMissingHubScreen);
     el.addEventListener("change", renderMissingHubScreen);
   });
+
+  els.wishlistImportButton.addEventListener("click", openWishlistImport);
+  els.wishlistListCheckButton.addEventListener("click", openWishlistListCheck);
+  els.closeWishlistListCheckButton.addEventListener("click", closeWishlistListCheck);
+  els.closeWishlistImportButton.addEventListener("click", closeWishlistImport);
+  els.wishlistClearSearchButton.addEventListener("click", () => {
+    els.wishlistSearchInput.value = "";
+    renderWishlistScreen();
+  });
+  els.clearWishlistPicksButton.addEventListener("click", clearWishlistPicks);
+  els.copyWishlistPicksButton.addEventListener("click", async () => {
+    try {
+      await copyWishlistPicks();
+    } catch {
+      window.alert("Nao foi possivel copiar as figurinhas marcadas agora.");
+    }
+  });
+  els.wishlistSearchInput.addEventListener("input", renderWishlistScreen);
+  els.wishlistSearchInput.addEventListener("change", renderWishlistScreen);
 
   document.addEventListener("click", (event) => {
     const modeField = event.target.closest(".collection-mode-field");
@@ -4252,6 +4912,7 @@ const HOME_ACTIONS = [
   { id: "showAlbumFormButton", label: "Adicionar álbum" },
   { id: "importAlbumButton", label: "Importar" },
   { id: "duplicatesButton", label: "Repetidas" },
+  { id: "wishlistButton", label: "Lista de desejos" },
   { id: "missingHubButton", label: "Faltantes" },
   { id: "compareModeButton", label: "Comparar álbuns" },
   { id: "stickerScannerButton", label: "Digitalizar figurinha" }
@@ -4661,7 +5322,22 @@ function getVisibleHomeActionIds() {
   try {
     const saved = JSON.parse(window.localStorage.getItem(HOME_ACTION_VISIBILITY_STORAGE_KEY) || "null");
     if (Array.isArray(saved)) {
-      return new Set(saved.filter((id) => HOME_ACTIONS.some((action) => action.id === id)));
+      const known = JSON.parse(window.localStorage.getItem(HOME_ACTION_KNOWN_STORAGE_KEY) || "null");
+      const validActionIds = new Set(HOME_ACTIONS.map((action) => action.id));
+      const visibleIds = new Set(saved.filter((id) => validActionIds.has(id)));
+
+      if (Array.isArray(known)) {
+        const knownIds = new Set(known);
+        HOME_ACTIONS.forEach((action) => {
+          if (!knownIds.has(action.id)) {
+            visibleIds.add(action.id);
+          }
+        });
+      } else if (!saved.includes("wishlistButton")) {
+        visibleIds.add("wishlistButton");
+      }
+
+      return visibleIds;
     }
   } catch (error) {
     console.warn("Nao foi possivel ler a configuracao dos botoes.", error);
@@ -4673,6 +5349,7 @@ function getVisibleHomeActionIds() {
 function saveVisibleHomeActionIds(ids) {
   try {
     window.localStorage.setItem(HOME_ACTION_VISIBILITY_STORAGE_KEY, JSON.stringify(Array.from(ids)));
+    window.localStorage.setItem(HOME_ACTION_KNOWN_STORAGE_KEY, JSON.stringify(HOME_ACTIONS.map((action) => action.id)));
   } catch (error) {
     console.warn("Nao foi possivel salvar a configuracao dos botoes.", error);
   }
