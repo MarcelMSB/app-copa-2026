@@ -330,6 +330,7 @@ const els = {
   missingHubTeamPickerButton: document.querySelector("#missingHubTeamPickerButton"),
   missingHubTeamFilter: document.querySelector("#missingHubTeamFilter"),
   missingHubTypeFilter: document.querySelector("#missingHubTypeFilter"),
+  missingHubIncludeWishlist: document.querySelector("#missingHubIncludeWishlist"),
   missingFilterPickerModal: document.querySelector("#missingFilterPickerModal"),
   missingFilterPickerTitle: document.querySelector("#missingFilterPickerTitle"),
   missingFilterPickerSearch: document.querySelector("#missingFilterPickerSearch"),
@@ -1481,6 +1482,7 @@ function getMissingHubAggregates() {
   const selectedAlbumIds = new Set(getMissingHubAlbumIds());
   const selectedTeamCodes = new Set(getMissingHubTeamCodes());
   const selectedType = els.missingHubTypeFilter.value;
+  const includeWishlist = Boolean(els.missingHubIncludeWishlist?.checked);
   const searchQuery = normalizeMissingHubSearch(els.missingHubSearchInput?.value);
   const aggregates = new Map();
 
@@ -1506,6 +1508,24 @@ function getMissingHubAggregates() {
           aggregates.set(item.id, current);
         });
     });
+
+  if (includeWishlist) {
+    state.wishlist
+      .map(normalizeWishlistItem)
+      .filter((item) => item?.id && (item.quantity || 0) > 0)
+      .filter((item) => !selectedTeamCodes.size || selectedTeamCodes.has(item.teamCode))
+      .filter((item) => selectedType === "all" || item.stickerType === selectedType)
+      .filter((item) => matchesMissingHubSearch(item, searchQuery))
+      .forEach((item) => {
+        const current = aggregates.get(item.id) || {
+          item,
+          quantity: 0,
+          albumIds: new Set()
+        };
+        current.quantity += Math.max(1, Number(item.quantity) || 1);
+        aggregates.set(item.id, current);
+      });
+  }
 
   return Array.from(aggregates.values())
     .map((entry) => {
@@ -1561,6 +1581,7 @@ function updateMissingHubClearButton() {
     selectedAlbumIds.length ||
     selectedTeamCodes.length ||
     els.missingHubTypeFilter.value !== "all" ||
+    els.missingHubIncludeWishlist?.checked ||
     els.missingHubSearchInput?.value.trim()
   );
 
@@ -3188,6 +3209,7 @@ async function openMissingHubScreen() {
   els.wishlistScreen.classList.add("hidden");
   els.missingHubScreen.classList.remove("hidden");
   els.backButton.classList.remove("hidden");
+  state.wishlist = await getAll(WISHLIST_STORE);
   await loadMissingPicks();
 }
 
@@ -4682,6 +4704,9 @@ function registerEvents() {
       option.selected = option.value === "all";
     });
     els.missingHubTypeFilter.value = "all";
+    if (els.missingHubIncludeWishlist) {
+      els.missingHubIncludeWishlist.checked = false;
+    }
     if (els.missingHubSearchInput) {
       els.missingHubSearchInput.value = "";
     }
@@ -4733,7 +4758,7 @@ function registerEvents() {
     renderMissingHubScreen();
   });
 
-  [els.missingHubSearchInput, els.missingHubTeamFilter, els.missingHubTypeFilter].filter(Boolean).forEach((el) => {
+  [els.missingHubSearchInput, els.missingHubTeamFilter, els.missingHubTypeFilter, els.missingHubIncludeWishlist].filter(Boolean).forEach((el) => {
     el.addEventListener("input", renderMissingHubScreen);
     el.addEventListener("change", renderMissingHubScreen);
   });
